@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Local dev: SQLite (no setup needed)
+// Production: change provider to "postgresql" and remove @db.Text / @db.Date annotations
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite doesn't support native enums — stored as String with app-level validation
+// When migrating to PostgreSQL, uncomment the enum blocks below and add them back to fields
+
+// enum JobStatus  { IN_PROGRESS APPLIED INTERVIEW LOOK_AGAIN REJECTED NOT_SUITABLE EXPIRED_FILLED }
+// enum JobPriority { SUPER_HIGH HIGH MEDIUM LOW }
+// enum LlmProvider { GROQ OPENROUTER }
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String?
+  passwordHash String     @map("password_hash")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  categories   Category[]
+  apiKeys      ApiKey[]
+
+  @@map("users")
+}
+
+model ApiKey {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  provider     String   // "GROQ" | "OPENROUTER"
+  encryptedKey String   @map("encrypted_key")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@map("api_keys")
+}
+
+model Category {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  name         String
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs         Job[]
+
+  @@unique([userId, name])
+  @@map("categories")
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  jobNumber   Int      @map("job_number")
+  title       String
+  company     String?
+  link        String?
+  status      String   @default("IN_PROGRESS") // JobStatus enum values
+  priority    String   @default("MEDIUM")       // JobPriority enum values
+  comments    String?
+  deadline    DateTime?
+  dateAdded   DateTime @default(now()) @map("date_added")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  note        JobNote?
+  history     JobHistory[]
+
+  @@map("jobs")
+}
+
+model JobNote {
+  id        String   @id @default(cuid())
+  jobId     String   @unique @map("job_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_notes")
+}
+
+model JobHistory {
+  id           String   @id @default(cuid())
+  jobId        String   @map("job_id")
+  fieldChanged String   @map("field_changed")
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  changedAt    DateTime @default(now()) @map("changed_at")
+
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_history")
+}

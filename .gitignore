@@ -1,0 +1,78 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets & sensitive data — never commit any of these
+data/
+.env
+.env.*
+!.env.example
+
+# Prisma generated
+/lib/generated/prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Python (legacy server artefacts)
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Windows startup scripts output
+server_out.txt
+server_err.txt
+
+# Logs
+*.log
+
+# Legacy folders (superseded by Next.js app + chrome-extension/)
+# Keep locally for reference but don't commit to GitHub
+/extension/
+/portal/
+/server/
+/manifest.json
+/JobApplication.html
+/tests/
