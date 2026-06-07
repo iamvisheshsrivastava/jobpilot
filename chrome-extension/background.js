@@ -1,7 +1,7 @@
 // JobPilot Extension v2.0.0 — background.js (service worker)
 // All API calls go through the Next.js backend (authenticated)
 
-let API_BASE = 'http://localhost:3000'
+let API_BASE = 'https://jobpilot-lime.vercel.app'
 
 // ── Token management ──────────────────────────────────────────────────────────
 
