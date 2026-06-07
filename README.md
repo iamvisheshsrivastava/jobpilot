@@ -10,6 +10,19 @@
 
 ---
 
+## 📸 Screenshots
+
+### Landing Page
+![Landing Page](public/screenshots/landing.png)
+
+### Login
+![Login](public/screenshots/login.png)
+
+### Dashboard
+![Dashboard](public/screenshots/dashboard.png)
+
+---
+
 ## ✨ Features
 
 ### 📋 Job Tracker (Web Portal)
