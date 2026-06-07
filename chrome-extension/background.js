@@ -14,7 +14,7 @@ async function authHeaders() {
   const token = await getToken()
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Cookie: `authjs.session-token=${token}` } : {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   }
 }
 
@@ -22,7 +22,7 @@ async function authHeaders() {
 
 async function apiGet(path) {
   const headers = await authHeaders()
-  const resp = await fetch(API_BASE + path, { headers, credentials: 'include' })
+  const resp = await fetch(API_BASE + path, { headers })
   if (!resp.ok) {
     const err = await resp.text()
     throw new Error(`GET ${path} → ${resp.status}: ${err}`)
@@ -35,7 +35,6 @@ async function apiPost(path, body) {
   const resp = await fetch(API_BASE + path, {
     method: 'POST',
     headers,
-    credentials: 'include',
     body: JSON.stringify(body),
   })
   if (!resp.ok) {
@@ -54,38 +53,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return
     }
 
-    // LOGIN — authenticate with Next.js credentials
+    // LOGIN — authenticate via dedicated token endpoint
     if (message.type === 'LOGIN') {
       try {
         const { email, password } = message.payload || {}
-
-        // NextAuth credentials sign-in via the CSRF + sign-in endpoint
-        // Step 1: get CSRF token
-        const csrfResp = await fetch(API_BASE + '/api/auth/csrf')
-        const { csrfToken } = await csrfResp.json()
-
-        // Step 2: sign in
-        const loginResp = await fetch(API_BASE + '/api/auth/callback/credentials', {
+        const resp = await fetch(API_BASE + '/api/auth/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ email, password, csrfToken, redirect: 'false' }),
-          credentials: 'include',
-          redirect: 'manual',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         })
-
-        // Extract session cookie
-        const cookies = loginResp.headers.get('set-cookie') || ''
-        const tokenMatch = cookies.match(/authjs\.session-token=([^;]+)/)
-        if (tokenMatch) {
-          await chrome.storage.local.set({ token: tokenMatch[1], userEmail: email })
-          sendResponse({ ok: true })
-        } else if (loginResp.status === 200 || loginResp.status === 302) {
-          // Some setups don't return cookie in header — store email and treat as logged in
-          await chrome.storage.local.set({ userEmail: email, token: 'session' })
-          sendResponse({ ok: true })
-        } else {
-          sendResponse({ ok: false, error: 'Invalid email or password' })
+        const data = await resp.json()
+        if (!resp.ok) {
+          sendResponse({ ok: false, error: data.error || 'Invalid email or password' })
+          return
         }
+        await chrome.storage.local.set({ token: data.token, userEmail: data.email })
+        sendResponse({ ok: true })
       } catch (err) {
         sendResponse({ ok: false, error: err.message })
       }

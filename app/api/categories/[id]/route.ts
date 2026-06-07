@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 
 const DEMO_EMAIL = 'demo@jobpilot.app'
@@ -9,11 +9,11 @@ async function getOwnedCategory(userId: string, id: string) {
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+  const user = await getUser(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
-  const category = await getOwnedCategory(session.user.id, params.id)
+  const category = await getOwnedCategory(user.id, params.id)
   if (!category) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json()
@@ -25,25 +25,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const user = await getUser(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
-  const category = await getOwnedCategory(session.user.id, params.id)
+  const category = await getOwnedCategory(user.id, params.id)
   if (!category) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const total = await prisma.category.count({ where: { userId: session.user.id } })
-  if (total <= 1) {
-    return NextResponse.json({ error: 'Cannot delete your only category' }, { status: 400 })
-  }
+  const total = await prisma.category.count({ where: { userId: user.id } })
+  if (total <= 1) return NextResponse.json({ error: 'Cannot delete your only category' }, { status: 400 })
 
   const jobCount = await prisma.job.count({ where: { categoryId: params.id } })
   if (jobCount > 0) {
-    return NextResponse.json(
-      { error: `Move or delete the ${jobCount} job(s) in this category first` },
-      { status: 409 },
-    )
+    return NextResponse.json({ error: `Move or delete the ${jobCount} job(s) in this category first` }, { status: 409 })
   }
 
   await prisma.category.delete({ where: { id: params.id } })
