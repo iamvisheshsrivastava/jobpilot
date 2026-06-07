@@ -22,9 +22,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json(job)
 }
 
+const DEMO_EMAIL = 'demo@jobpilot.app'
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const job = await getOwnedJob(session.user.id, params.id)
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -92,6 +95,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const job = await getOwnedJob(session.user.id, params.id)
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })

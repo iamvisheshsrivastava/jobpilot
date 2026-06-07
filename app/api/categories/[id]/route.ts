@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const DEMO_EMAIL = 'demo@jobpilot.app'
+
 async function getOwnedCategory(userId: string, id: string) {
   return prisma.category.findFirst({ where: { id, userId } })
 }
@@ -9,6 +11,7 @@ async function getOwnedCategory(userId: string, id: string) {
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const category = await getOwnedCategory(session.user.id, params.id)
   if (!category) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -25,6 +28,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const category = await getOwnedCategory(session.user.id, params.id)
   if (!category) return NextResponse.json({ error: 'Not found' }, { status: 404 })

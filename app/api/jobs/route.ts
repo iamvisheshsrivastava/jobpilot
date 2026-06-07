@@ -53,9 +53,12 @@ export async function GET(req: Request) {
   return NextResponse.json({ jobs, total, page, limit, pages: Math.ceil(total / limit) })
 }
 
+const DEMO_EMAIL = 'demo@jobpilot.app'
+
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const body = await req.json()
   const { title, company, link, categoryId, status, priority, deadline, comments, pageNote } = body
