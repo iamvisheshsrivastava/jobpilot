@@ -8,6 +8,8 @@
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green?logo=googlechrome)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+🌐 **Live App:** [jobpilot-lime.vercel.app](https://jobpilot-lime.vercel.app) &nbsp;|&nbsp; 🧩 **Chrome Extension:** *Under review — link coming soon*
+
 ---
 
 ## 📸 Screenshots
@@ -20,6 +22,61 @@
 
 ### Dashboard
 ![Dashboard](public/screenshots/dashboard.png)
+
+---
+
+## 🧩 Chrome Extension
+
+<img src="public/screenshots/extension-icon.png" width="80" alt="JobPilot Extension Icon" />
+
+> 🔔 The Chrome Extension is currently **under review by Google** and will be available on the Chrome Web Store shortly. The install link will be added here as soon as it is approved.
+
+The JobPilot Chrome Extension is what makes this tool truly powerful. Instead of manually copying job titles, companies, and links into a tracker, you browse job boards the way you normally do — and save anything with a single click directly from your browser.
+
+### How the Extension Works Together with the Web App
+
+```
+You browse a job posting (LinkedIn, Indeed, StepStone, any site)
+         ↓
+Click the JobPilot extension icon in your Chrome toolbar
+         ↓
+┌─────────────────────────────────────────┐
+│  JobPilot Extension Popup               │
+│                                         │
+│  [Capture Job Details]  ← reads page   │
+│  [Check Suitability]    ← AI analysis  │
+│  [Save to Dashboard]    ← one click    │
+└─────────────────────────────────────────┘
+         ↓
+Job is instantly saved to your JobPilot dashboard
+with title, company, URL, and deadline pre-filled
+         ↓
+Open the web app to track status, add notes,
+generate a tailored CV, and manage your pipeline
+```
+
+### Extension Features
+
+| Feature | What it does |
+|---|---|
+| **One-Click Save** | Captures the job title, company, URL from the current page and saves it to your tracker instantly |
+| **AI Job Enrichment** | Reads the full job description and auto-extracts title, company name, and application deadline |
+| **AI Suitability Check** | Analyses the job description against your saved profile and tells you if you are a strong, partial, or poor match — before you spend time applying |
+| **Category Selection** | Choose which category to save the job into (e.g. *Germany – Backend*, *Remote – ML*) right from the popup |
+| **Status & Priority** | Set the initial status and priority before saving |
+
+### Typical Workflow
+
+1. **Set up your profile** on the web app — add your experience, skills, education, and upload your CV
+2. **Install the Chrome Extension** *(link coming soon)*
+3. **Browse job boards** — LinkedIn, Indeed, StepStone, Glassdoor, or any company careers page
+4. **Click the extension** on any job that catches your eye
+5. Hit **"Capture Job Details"** — the extension reads the page and fills in the form automatically
+6. Optionally hit **"Check Suitability"** — get an instant AI verdict on whether this role matches your profile
+7. Hit **"Save Job"** — it appears in your dashboard immediately
+8. Back on the **web app**, track your progress: update status, set deadlines, add notes, and when ready — use **Generate CV** to create an ATS-optimised resume tailored to that specific job description
+
+> 📹 A full video walkthrough will be added here soon.
 
 ---
 
@@ -55,14 +112,8 @@
 - API keys are encrypted with AES-256-GCM in the browser — never sent to any server
 
 ### 🔒 Demo Account
-- Try everything at `demo@jobpilot.app` / `demo1234` — read-only mode
-- Pre-seeded with 23 realistic German job applications across 3 categories
-
-### 🧩 Chrome Extension (Manifest V3)
-- **Save Job** — one-click save of any job posting from any website
-- **Check Suitability** — AI rates how well the job matches your profile
-- **Enrich Job** — auto-fills title, company, and deadline from the page
-- Login with your JobPilot credentials directly in the popup
+- Try everything at `demo@jobpilot.app` / `Demo123456` — read-only mode
+- Pre-seeded with 18 realistic German job applications across 3 categories
 
 ---
 
@@ -74,15 +125,15 @@
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS v3 |
 | UI Components | shadcn/ui + Radix UI |
-| Auth (dashboard) | localStorage + PBKDF2 password hashing |
-| Auth (extension) | NextAuth v5 (Auth.js) JWT credentials |
-| Database | Prisma v5 + SQLite |
+| Auth | NextAuth v5 (Auth.js) JWT credentials |
+| Database | Prisma v5 + PostgreSQL (Neon) |
 | AI / LLM | OpenAI, Anthropic, Gemini, Groq, OpenRouter |
 | PDF parsing | pdfjs-dist (client-side) |
 | PDF export | jsPDF |
 | Word export | docx |
 | Excel | xlsx (SheetJS) |
 | Extension | Chrome Manifest V3 (service worker) |
+| Deployment | Vercel + Neon |
 
 ---
 
@@ -91,6 +142,7 @@
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
+- PostgreSQL database (or free [Neon](https://neon.tech) account)
 
 ### 1. Clone & install
 
@@ -109,11 +161,11 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-# SQLite (local)
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
+DIRECT_URL="postgresql://user:password@host/dbname?sslmode=require"
 
 # Generate with: openssl rand -base64 32
-NEXTAUTH_SECRET="your-secret-here"
+AUTH_SECRET="your-secret-here"
 NEXTAUTH_URL="http://localhost:3000"
 
 # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -123,7 +175,7 @@ ENCRYPTION_KEY="your-64-char-hex-string"
 ### 3. Set up the database
 
 ```bash
-npx prisma migrate dev
+npx prisma migrate deploy
 npx prisma generate
 ```
 
@@ -135,29 +187,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**Quick start:** Log in with `demo@jobpilot.app` / `demo1234` to explore all features with pre-loaded data.
+**Quick start:** Log in with `demo@jobpilot.app` / `Demo123456` to explore all features with pre-loaded data.
 
 ---
 
-## 🧩 Chrome Extension
-
-### Load locally (Developer Mode)
+## 🧩 Loading the Extension Locally (Developer Mode)
 
 1. Open Chrome → `chrome://extensions/`
 2. Enable **Developer Mode** (top-right toggle)
 3. Click **Load unpacked** → select the `chrome-extension/` folder
 4. Pin the JobPilot icon from the extensions toolbar
-
-> **Note:** The extension calls `http://localhost:3000` by default. The Next.js dev server must be running.
-
-### What it does
-
-| Action | Description |
-|---|---|
-| **Login** | Authenticate with your JobPilot credentials |
-| **Save Job** | Captures the current page's job details and saves to your tracker |
-| **Check Suitability** | AI analyses the job against your profile and gives a suitability score |
-| **Enrich Job** | Auto-fills title, company, and deadline from the page text |
+5. Log in with your JobPilot account credentials
 
 ---
 
@@ -171,21 +211,21 @@ jobpilot/
 │   │   ├── profile/            # Profile & CV management
 │   │   ├── generate-cv/        # ATS CV generator
 │   │   ├── settings/           # API keys & account settings
-│   │   └── dashboard/          # Analytics dashboard
+│   │   └── analytics/          # Analytics dashboard
 │   ├── login/                  # Login page
 │   ├── signup/                 # Sign-up page
-│   └── api/                    # Next.js API routes (extension backend)
+│   ├── privacy/                # Privacy policy
+│   └── api/                    # Next.js API routes
 ├── chrome-extension/           # Chrome Extension (Manifest V3)
 │   ├── manifest.json
 │   ├── popup.html / popup.js
-│   ├── background.js           # Service worker
+│   ├── background.js           # Service worker + API calls
 │   └── content.js              # Page text extraction
 ├── lib/
-│   ├── jobpilot-store.ts       # localStorage store + all CRUD helpers
-│   ├── llm.ts                  # Multi-provider LLM routing
 │   ├── auth.ts                 # NextAuth config
-│   └── prisma.ts               # Prisma client
-├── components/                 # Shared UI components
+│   ├── auth-ext.ts             # Bearer token auth for extension
+│   ├── llm.ts                  # Multi-provider LLM routing
+│   └── prisma.ts               # Prisma client singleton
 ├── prisma/schema.prisma        # DB schema
 └── .env.example                # Environment variable template
 ```
@@ -194,10 +234,10 @@ jobpilot/
 
 ## 🔐 Security Notes
 
-- **API keys** are encrypted with AES-256-GCM before storage in `localStorage` — never transmitted to any server
-- **Passwords** are hashed with PBKDF2 (100,000 iterations, SHA-256)
-- The **demo account** is read-only — no data can be mutated
-- All secrets live in `.env` which is `.gitignore`d — see `.env.example` for required variables
+- **API keys** are encrypted with AES-256-GCM before storage — never transmitted to any server
+- **Passwords** are hashed with bcrypt (12 rounds)
+- The **demo account** is read-only — no data can be mutated via any API route
+- All secrets live in `.env` which is `.gitignore`d
 
 ---
 
