@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { Briefcase } from "lucide-react";
+import { Briefcase, ArrowLeft } from "lucide-react";
 
 import { signUpUser } from "@/lib/jobpilot-store";
 
@@ -46,6 +46,9 @@ export default function SignupPage() {
   return (
     <main className="flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4">
       <div className="w-full max-w-sm">
+        <Link href="/" className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowLeft className="size-4" /> Back to home
+        </Link>
         {/* Card */}
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           {/* Logo */}
