@@ -23,13 +23,12 @@ import {
 } from "@/components/ui/card";
 import {
   Category,
-  getCategories,
-  getCurrentUser,
-  getJobs,
+  fetchCategories,
+  fetchJobs,
   JOB_PRIORITIES,
   JOB_STATUSES,
   JobWithCategory,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 
 const statusColors: Record<string, string> = {
   "In Progress": "#f97316",
@@ -76,10 +75,13 @@ export default function AnalyticsPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
 
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) return;
-    setCategories(getCategories(user.id));
-    setJobs(getJobs(user.id));
+    Promise.all([
+      fetchCategories(),
+      fetchJobs({ limit: 1000 }),
+    ]).then(([cats, jobsResp]) => {
+      setCategories(cats);
+      setJobs(jobsResp.jobs);
+    }).catch(() => {});
   }, []);
 
   const filteredJobs = useMemo(() => {

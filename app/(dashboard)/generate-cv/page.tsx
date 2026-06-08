@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   AlertCircle,
   Download,
@@ -13,12 +14,10 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  getCurrentUser,
-  getApiKeys,
-  getUserProfile,
+  fetchApiKeys,
+  fetchProfile,
   UserProfile,
-  User,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 import { callLLM } from "@/lib/llm";
 import { cn } from "@/lib/utils";
 
@@ -42,12 +41,7 @@ function buildUserPrompt(profile: UserProfile, userEmail: string, jobDescription
   const sections: string[] = [];
 
   sections.push(`=== CANDIDATE PROFILE ===`);
-  sections.push(`Name: ${profile.fullName || "Not provided"}`);
   sections.push(`Email: ${userEmail}`);
-  if (profile.phone) sections.push(`Phone: ${profile.phone}`);
-  if (profile.location) sections.push(`Location: ${profile.location}`);
-  if (profile.linkedin) sections.push(`LinkedIn: ${profile.linkedin}`);
-  if (profile.website) sections.push(`Website: ${profile.website}`);
 
   if (profile.summary) {
     sections.push(`\n=== PROFESSIONAL SUMMARY ===\n${profile.summary}`);
@@ -182,7 +176,7 @@ async function downloadDOCX(cvText: string, name: string) {
 
 export default function GenerateCVPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const { data: session } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [jobDescription, setJobDescription] = useState("");
@@ -192,25 +186,26 @@ export default function GenerateCVPage() {
   const [downloading, setDownloading] = useState<"pdf" | "docx" | null>(null);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) return;
-    setUser(u);
-    setProfile(getUserProfile(u.id));
-    setHasApiKey(getApiKeys(u.id).length > 0);
+    Promise.all([fetchProfile(), fetchApiKeys()])
+      .then(([p, keys]) => {
+        setProfile(p);
+        setHasApiKey(keys.length > 0);
+      })
+      .catch(() => {});
   }, []);
 
-  const profileComplete = profile && (profile.cvText || profile.experience?.length > 0 || profile.skills?.length > 0);
+  const profileComplete = profile && (profile.cvText || (profile.experience?.length ?? 0) > 0 || (profile.skills?.length ?? 0) > 0);
 
   async function handleGenerate() {
-    if (!user || !profile || !jobDescription.trim()) return;
+    if (!profile || !jobDescription.trim()) return;
     setError("");
     setResult("");
     setGenerating(true);
 
     const res = await callLLM(
-      user.id,
+      session?.user?.id ?? "",
       buildSystemPrompt(),
-      buildUserPrompt(profile, user.email, jobDescription),
+      buildUserPrompt(profile, session?.user?.email ?? "", jobDescription),
     );
 
     setGenerating(false);
@@ -222,10 +217,10 @@ export default function GenerateCVPage() {
   }
 
   async function handleDownloadPDF() {
-    if (!result || !profile) return;
+    if (!result) return;
     setDownloading("pdf");
     try {
-      await downloadPDF(result, profile.fullName || user?.email || "CV");
+      await downloadPDF(result, session?.user?.email ?? "CV");
     } catch (e) {
       setError("PDF generation failed: " + (e instanceof Error ? e.message : String(e)));
     }
@@ -233,10 +228,10 @@ export default function GenerateCVPage() {
   }
 
   async function handleDownloadDOCX() {
-    if (!result || !profile) return;
+    if (!result) return;
     setDownloading("docx");
     try {
-      await downloadDOCX(result, profile.fullName || user?.email || "CV");
+      await downloadDOCX(result, session?.user?.email ?? "CV");
     } catch (e) {
       setError("DOCX generation failed: " + (e instanceof Error ? e.message : String(e)));
     }

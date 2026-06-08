@@ -18,24 +18,44 @@ datasource db {
 // enum LlmProvider { GROQ OPENROUTER }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
+  id           String      @id @default(cuid())
+  email        String      @unique
   name         String?
-  passwordHash String     @map("password_hash")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  passwordHash String      @map("password_hash")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   categories   Category[]
   apiKeys      ApiKey[]
+  profile      UserProfile?
 
   @@map("users")
+}
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  summary        String?
+  cvText         String?  @map("cv_text")
+  experience     String?  // JSON array of ExperienceEntry
+  education      String?  // JSON array of EducationEntry
+  skills         String?  // JSON array of strings
+  languages      String?  // JSON array of LanguageEntry
+  certifications String?  // JSON array of strings
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
 }
 
 model ApiKey {
   id           String   @id @default(cuid())
   userId       String   @map("user_id")
-  provider     String   // "GROQ" | "OPENROUTER"
+  provider     String   // "GROQ" | "OPENROUTER" or any LlmProvider
   encryptedKey String   @map("encrypted_key")
+  modelName    String?  @map("model_name")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -67,11 +87,13 @@ model Job {
   title       String
   company     String?
   link        String?
-  status      String   @default("IN_PROGRESS") // JobStatus enum values
-  priority    String   @default("MEDIUM")       // JobPriority enum values
-  comments    String?
-  deadline    DateTime?
-  dateAdded   DateTime @default(now()) @map("date_added")
+  status           String   @default("IN_PROGRESS") // JobStatus enum values
+  priority         String   @default("MEDIUM")       // JobPriority enum values
+  comments         String?
+  deadline         DateTime?
+  dateAdded        DateTime @default(now()) @map("date_added")
+  starred          Boolean  @default(false)
+  duplicateGroupId String?  @map("duplicate_group_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

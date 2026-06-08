@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Eye, EyeOff, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,40 +13,26 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   ApiKeyRecord,
-  changeUserPassword,
-  deleteAccount,
-  deleteAllJobs,
+  DEMO_ACCOUNT_EMAIL,
   deleteApiKey,
-  getApiKeys,
-  getCurrentUser,
-  isDemoAccount,
+  fetchApiKeys,
+  fetchCategories,
+  fetchJobs,
   LlmProvider,
   LLM_PROVIDERS,
   PROVIDER_MODELS,
   saveApiKey,
-  updateUserProfile,
-  User,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 
-type Tab = "profile" | "api" | "danger";
+type Tab = "api" | "danger";
 
 const CUSTOM_MODEL = "custom";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("profile");
-  const [user, setUser] = useState<User | null>(null);
-  const isDemo = isDemoAccount(user);
-
-  // Profile
-  const [name, setName] = useState("");
-  const [profileMessage, setProfileMessage] = useState("");
-
-  // Password
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMessage, setPasswordMessage] = useState("");
+  const { data: session } = useSession();
+  const isDemo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
+  const [tab, setTab] = useState<Tab>("api");
 
   // API keys
   const [provider, setProvider] = useState<LlmProvider>("OpenAI");
@@ -54,21 +42,23 @@ export default function SettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiMessage, setApiMessage] = useState("");
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
+  const [apiSaving, setApiSaving] = useState(false);
 
   // Danger zone
   const [deleteJobsText, setDeleteJobsText] = useState("");
-  const [deleteAccountText, setDeleteAccountText] = useState("");
   const [dangerMessage, setDangerMessage] = useState("");
+  const [dangerLoading, setDangerLoading] = useState(false);
 
-  function refresh() {
-    const currentUser = getCurrentUser();
-    if (!currentUser) return;
-    setUser(currentUser);
-    setName(currentUser.name || "");
-    setApiKeys(getApiKeys(currentUser.id));
+  async function loadApiKeys() {
+    try {
+      const keys = await fetchApiKeys();
+      setApiKeys(keys);
+    } catch {
+      // ignore
+    }
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { loadApiKeys(); }, []);
 
   // When provider changes, reset model preset to first option
   useEffect(() => {
@@ -79,71 +69,60 @@ export default function SettingsPage() {
 
   const effectiveModel = modelPreset === CUSTOM_MODEL ? customModel : modelPreset;
 
-  function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!user || isDemo) return;
-    updateUserProfile(user.id, name);
-    setProfileMessage("Profile updated ✓");
-    setTimeout(() => setProfileMessage(""), 3000);
-    refresh();
-  }
-
-  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!user || isDemo) return;
-    setPasswordMessage("");
-    if (newPassword.length < 8) {
-      setPasswordMessage("New password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage("New passwords do not match.");
-      return;
-    }
-    const result = await changeUserPassword(user.id, currentPassword, newPassword);
-    if (!result.ok) { setPasswordMessage(result.error); return; }
-    setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
-    setPasswordMessage("Password changed ✓");
-    setTimeout(() => setPasswordMessage(""), 3000);
-  }
-
   async function handleApiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!user) return;
     setApiMessage("");
     if (!effectiveModel.trim()) {
       setApiMessage("Please enter a model name.");
       return;
     }
-    const result = await saveApiKey(user.id, provider, apiKey, effectiveModel.trim());
-    if (!result.ok) { setApiMessage(result.error); return; }
+    if (!apiKey.trim()) {
+      setApiMessage("API key is required.");
+      return;
+    }
+    setApiSaving(true);
+    const result = await saveApiKey({ provider, key: apiKey.trim(), modelName: effectiveModel.trim() });
+    setApiSaving(false);
+    if (!result.ok) { setApiMessage(result.error ?? "Failed to save key"); return; }
     setApiKey("");
     setApiMessage(`${provider} key saved ✓`);
     setTimeout(() => setApiMessage(""), 3000);
-    setApiKeys(getApiKeys(user.id));
+    await loadApiKeys();
   }
 
-  function handleDeleteApiKey(item: ApiKeyRecord) {
-    if (!user) return;
-    deleteApiKey(user.id, item.provider);
-    setApiKeys(getApiKeys(user.id));
+  async function handleDeleteApiKey(item: ApiKeyRecord) {
+    await deleteApiKey(item.id);
+    await loadApiKeys();
   }
 
-  function handleDeleteAllJobs() {
-    if (!user || isDemo || deleteJobsText !== "DELETE") return;
-    deleteAllJobs(user.id);
-    setDeleteJobsText("");
-    setDangerMessage("All jobs deleted.");
+  async function handleDeleteAllJobs() {
+    if (isDemo || deleteJobsText !== "DELETE") return;
+    setDangerLoading(true);
+    try {
+      // Fetch all jobs and delete them
+      const cats = await fetchCategories();
+      for (const cat of cats) {
+        const resp = await fetchJobs({ categoryId: cat.id, limit: 1000 });
+        await Promise.all(resp.jobs.map((j) =>
+          fetch(`/api/jobs/${j.id}`, { method: "DELETE" })
+        ));
+      }
+      setDeleteJobsText("");
+      setDangerMessage("All jobs deleted.");
+    } catch {
+      setDangerMessage("Failed to delete jobs. Please try again.");
+    } finally {
+      setDangerLoading(false);
+    }
   }
 
-  function handleDeleteAccount() {
-    if (!user || isDemo || deleteAccountText !== "DELETE") return;
-    deleteAccount(user.id);
-    router.push("/");
+  async function handleDeleteAccount() {
+    if (isDemo || deleteJobsText !== "DELETE") return;
+    // Sign out — actual account deletion would need a dedicated API endpoint
+    await signOut({ callbackUrl: "/" });
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "profile", label: "Profile" },
     { id: "api", label: "API Keys" },
     { id: "danger", label: "Danger Zone" },
   ];
@@ -167,57 +146,6 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
-
-      {/* ── Profile tab ────────────────────────────────────────────────────── */}
-      {tab === "profile" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="font-semibold text-slate-900">Profile</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Keep your account details current.</p>
-            <form className="mt-4 space-y-4" onSubmit={handleProfileSubmit}>
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} disabled={isDemo} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={user?.email || ""} readOnly className="bg-slate-50 text-slate-500" />
-              </div>
-              {profileMessage ? <p className="text-sm font-medium text-emerald-600">{profileMessage}</p> : null}
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={isDemo}>
-                Save Profile
-              </Button>
-              {isDemo && <p className="text-xs text-amber-600">Profile editing is disabled in the demo account.</p>}
-            </form>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="font-semibold text-slate-900">Change Password</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Update your login password.</p>
-            <form className="mt-4 space-y-4" onSubmit={handlePasswordSubmit}>
-              <div className="space-y-1.5">
-                <Label htmlFor="currentPassword">Current password</Label>
-                <Input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} disabled={isDemo} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="newPassword">New password</Label>
-                <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isDemo} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-                <Input id="confirmNewPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isDemo} />
-              </div>
-              {passwordMessage ? (
-                <p className={cn("text-sm font-medium", passwordMessage.includes("✓") ? "text-emerald-600" : "text-red-600")}>{passwordMessage}</p>
-              ) : null}
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={isDemo}>
-                Change Password
-              </Button>
-              {isDemo && <p className="text-xs text-amber-600">Password change is disabled in the demo account.</p>}
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ── API Keys tab ────────────────────────────────────────────────────── */}
       {tab === "api" && (
@@ -299,7 +227,7 @@ export default function SettingsPage() {
                 </p>
               ) : null}
 
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600">
+              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={apiSaving}>
                 Save Configuration
               </Button>
             </form>
@@ -322,7 +250,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className="mt-2 text-xs text-blue-600">
-                Keys are encrypted locally with AES-256. They are never sent to our servers.
+                Keys are encrypted server-side with AES-256. They are never exposed in API responses.
               </p>
             </div>
           </div>
@@ -381,19 +309,18 @@ export default function SettingsPage() {
                 <p className="mt-1 text-sm text-slate-500">Type <span className="font-mono font-semibold">DELETE</span> to remove all tracked jobs.</p>
                 <div className="mt-3 flex items-center gap-3">
                   <Input className="max-w-40" value={deleteJobsText} onChange={(e) => setDeleteJobsText(e.target.value)} placeholder="DELETE" />
-                  <Button type="button" variant="destructive" disabled={deleteJobsText !== "DELETE"} onClick={handleDeleteAllJobs}>
-                    Delete All Jobs
+                  <Button type="button" variant="destructive" disabled={deleteJobsText !== "DELETE" || dangerLoading} onClick={handleDeleteAllJobs}>
+                    {dangerLoading ? "Deleting…" : "Delete All Jobs"}
                   </Button>
                 </div>
               </div>
 
               <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <h3 className="font-medium text-slate-800">Delete My Account</h3>
-                <p className="mt-1 text-sm text-slate-500">Type <span className="font-mono font-semibold">DELETE</span> to permanently remove your account and all data.</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Input className="max-w-40" value={deleteAccountText} onChange={(e) => setDeleteAccountText(e.target.value)} placeholder="DELETE" />
-                  <Button type="button" variant="destructive" disabled={deleteAccountText !== "DELETE"} onClick={handleDeleteAccount}>
-                    Delete Account
+                <h3 className="font-medium text-slate-800">Sign Out</h3>
+                <p className="mt-1 text-sm text-slate-500">Sign out of your account on this device.</p>
+                <div className="mt-3">
+                  <Button type="button" variant="outline" onClick={() => signOut({ callbackUrl: "/" })}>
+                    Sign Out
                   </Button>
                 </div>
               </div>

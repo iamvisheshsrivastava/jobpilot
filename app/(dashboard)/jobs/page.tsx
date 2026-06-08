@@ -3,11 +3,13 @@
 import {
   ChangeEvent,
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useSession } from "next-auth/react";
 import {
   ArrowDown,
   ArrowUp,
@@ -44,17 +46,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  addCategory,
-  addJob,
   Category,
+  createCategory,
+  createJob,
   deleteCategory,
   deleteManyJobs,
   deleteJob,
+  DEMO_ACCOUNT_EMAIL,
+  fetchCategories,
+  fetchJobs,
   findSimilarJobs,
-  getCategories,
-  getCurrentUser,
-  getJobs,
-  isDemoAccount,
   JobPriority,
   JOB_PRIORITIES,
   JobStatus,
@@ -62,13 +63,10 @@ import {
   JobWithCategory,
   renameCategory,
   today,
-  toggleStarJob,
   updateJob,
-  User,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const ROWS_PER_PAGE = 10;
 const STATUS_FILTERS = ["All", ...JOB_STATUSES] as const;
 const PRIORITY_FILTERS = ["All", ...JOB_PRIORITIES] as const;
 const SORT_OPTIONS = ["Date Added", "Title", "Company", "Deadline", "Priority", "Status", "Starred"] as const;
@@ -177,10 +175,12 @@ function CategoryMenu({
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function JobsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const isDemo = isDemoAccount(user);
+  const { data: session } = useSession();
+  const isDemo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [jobs, setJobs] = useState<JobWithCategory[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("All");
@@ -204,16 +204,19 @@ export default function JobsPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [formError, setFormError] = useState("");
   const [formSimilar, setFormSimilar] = useState<JobWithCategory[]>([]);
+  const [formSaving, setFormSaving] = useState(false);
 
   // Category dialogs
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [addCatName, setAddCatName] = useState("");
   const [addCatError, setAddCatError] = useState("");
+  const [addCatSaving, setAddCatSaving] = useState(false);
 
   const [renameCatOpen, setRenameCatOpen] = useState(false);
   const [renameCatTarget, setRenameCatTarget] = useState<Category | null>(null);
   const [renameCatName, setRenameCatName] = useState("");
   const [renameCatError, setRenameCatError] = useState("");
+  const [renameCatSaving, setRenameCatSaving] = useState(false);
 
   const [deleteCatOpen, setDeleteCatOpen] = useState(false);
   const [deleteCatTarget, setDeleteCatTarget] = useState<Category | null>(null);
@@ -235,22 +238,26 @@ export default function JobsPage() {
     return map;
   }, [jobs]);
 
-  function refresh(nextActiveId?: string) {
-    const currentUser = getCurrentUser();
-    if (!currentUser) return;
-    const nextCategories = getCategories(currentUser.id);
-    const nextJobs = getJobs(currentUser.id);
-    setUser(currentUser);
-    setCategories(nextCategories);
-    setJobs(nextJobs);
-    setActiveCategoryId((current) => {
-      const preferred = nextActiveId || current;
-      if (preferred && nextCategories.some((c) => c.id === preferred)) return preferred;
-      return nextCategories[0]?.id ?? "";
-    });
-  }
+  const refresh = useCallback(async (nextActiveId?: string) => {
+    setLoading(true);
+    try {
+      const [cats, jobsResp] = await Promise.all([
+        fetchCategories(),
+        fetchJobs({ limit: 1000 }),
+      ]);
+      setCategories(cats);
+      setJobs(jobsResp.jobs);
+      setActiveCategoryId((current) => {
+        const preferred = nextActiveId || current;
+        if (preferred && cats.some((c) => c.id === preferred)) return preferred;
+        return cats[0]?.id ?? "";
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [refresh]);
 
   // ── Keyboard shortcut: Esc ─────────────────────────────────────────────────
   useEffect(() => {
@@ -270,10 +277,10 @@ export default function JobsPage() {
 
   // ── Duplicate detection while typing in modal ──────────────────────────────
   useEffect(() => {
-    if (!user || !jobModalOpen) { setFormSimilar([]); return; }
-    const similar = findSimilarJobs(user.id, form.title, form.link, editingId ?? undefined);
+    if (!jobModalOpen) { setFormSimilar([]); return; }
+    const similar = findSimilarJobs(jobs, form.title, form.link, editingId ?? undefined);
     setFormSimilar(similar);
-  }, [form.title, form.link, user, editingId, jobModalOpen]);
+  }, [form.title, form.link, jobs, editingId, jobModalOpen]);
 
   // ── Filtered + sorted jobs ─────────────────────────────────────────────────
   const visibleJobs = useMemo(() => {
@@ -301,43 +308,49 @@ export default function JobsPage() {
     });
   }, [activeCategoryId, jobs, priorityFilter, search, sortBy, sortAsc, statusFilter, showDuplicatesOnly]);
 
-  const totalPages = Math.max(1, Math.ceil(visibleJobs.length / ROWS_PER_PAGE));
-  const pagedJobs = visibleJobs.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(visibleJobs.length / PAGE_SIZE));
+  const pagedJobs = visibleJobs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => { setPage(1); }, [activeCategoryId, search, statusFilter, priorityFilter, sortBy, sortAsc, showDuplicatesOnly]);
 
   // ── Category handlers ──────────────────────────────────────────────────────
   function openAddCat() { setAddCatName(""); setAddCatError(""); setAddCatOpen(true); }
 
-  function handleAddCatSubmit(e: FormEvent) {
+  async function handleAddCatSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!user) return;
-    const result = addCategory(user.id, addCatName);
-    if (!result.ok) { setAddCatError(result.error); return; }
+    setAddCatError("");
+    setAddCatSaving(true);
+    const result = await createCategory(addCatName);
+    setAddCatSaving(false);
+    if (!result.ok) { setAddCatError(result.error ?? "Failed to create category"); return; }
     setAddCatOpen(false);
-    refresh(result.category.id);
+    await refresh(result.category!.id);
   }
 
   function openRenameCat(cat: Category) {
     setRenameCatTarget(cat); setRenameCatName(cat.name); setRenameCatError(""); setRenameCatOpen(true);
   }
 
-  function handleRenameCatSubmit(e: FormEvent) {
+  async function handleRenameCatSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!user || !renameCatTarget) return;
-    const result = renameCategory(user.id, renameCatTarget.id, renameCatName);
-    if (!result.ok) { setRenameCatError(result.error); return; }
+    if (!renameCatTarget) return;
+    setRenameCatError("");
+    setRenameCatSaving(true);
+    const result = await renameCategory(renameCatTarget.id, renameCatName);
+    setRenameCatSaving(false);
+    if (!result.ok) { setRenameCatError(result.error ?? "Failed to rename"); return; }
     setRenameCatOpen(false);
-    refresh(renameCatTarget.id);
+    await refresh(renameCatTarget.id);
   }
 
   function openDeleteCat(cat: Category) { setDeleteCatTarget(cat); setDeleteCatOpen(true); }
 
-  function handleDeleteCatConfirm() {
-    if (!user || !deleteCatTarget) return;
-    deleteCategory(user.id, deleteCatTarget.id);
+  async function handleDeleteCatConfirm() {
+    if (!deleteCatTarget) return;
+    await deleteCategory(deleteCatTarget.id);
     setDeleteCatOpen(false);
-    refresh();
+    await refresh();
   }
 
   // ── Job handlers ───────────────────────────────────────────────────────────
@@ -359,9 +372,8 @@ export default function JobsPage() {
     setJobModalOpen(true);
   }
 
-  function handleJobSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleJobSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!user) return;
     if (!form.title.trim()) { setFormError("Title is required."); return; }
     if (!form.categoryId) { setFormError("Choose a category before saving."); return; }
     const payload = {
@@ -369,23 +381,26 @@ export default function JobsPage() {
       link: form.link, status: form.status, priority: form.priority,
       deadline: form.deadline, comments: form.comments,
     };
-    const result = editingId ? updateJob(user.id, editingId, payload) : addJob(user.id, payload);
-    if (!result.ok) { setFormError(result.error); return; }
+    setFormError("");
+    setFormSaving(true);
+    const result = editingId
+      ? await updateJob(editingId, payload)
+      : await createJob(payload);
+    setFormSaving(false);
+    if (!result.ok) { setFormError(result.error ?? "Failed to save"); return; }
     setJobModalOpen(false);
-    refresh(form.categoryId);
+    await refresh(form.categoryId);
   }
 
-  function handleDeleteJob(job: JobWithCategory) {
-    if (!user) return;
-    deleteJob(user.id, job.id);
-    refresh(activeCategoryId);
+  async function handleDeleteJob(job: JobWithCategory) {
+    await deleteJob(job.id);
+    await refresh(activeCategoryId);
   }
 
   // ── Star toggle ────────────────────────────────────────────────────────────
-  function handleToggleStar(job: JobWithCategory) {
-    if (!user) return;
-    toggleStarJob(user.id, job.id);
-    refresh(activeCategoryId);
+  async function handleToggleStar(job: JobWithCategory) {
+    await updateJob(job.id, { starred: !job.starred });
+    await refresh(activeCategoryId);
   }
 
   // ── Bulk select ────────────────────────────────────────────────────────────
@@ -405,13 +420,12 @@ export default function JobsPage() {
     }
   }
 
-  function handleBulkDelete() {
-    if (!user) return;
-    deleteManyJobs(user.id, Array.from(selectedIds));
+  async function handleBulkDelete() {
+    await deleteManyJobs(Array.from(selectedIds));
     setSelectedIds(new Set());
     setSelectionMode(false);
     setBulkDeleteOpen(false);
-    refresh(activeCategoryId);
+    await refresh(activeCategoryId);
   }
 
   // ── Notes panel ────────────────────────────────────────────────────────────
@@ -426,10 +440,9 @@ export default function JobsPage() {
     });
   }
 
-  function saveNote(job: JobWithCategory) {
-    if (!user) return;
-    updateJob(user.id, job.id, { notes: noteDrafts[job.id] ?? "" });
-    refresh(activeCategoryId);
+  async function saveNote(job: JobWithCategory) {
+    await updateJob(job.id, { notes: noteDrafts[job.id] ?? "" });
+    await refresh(activeCategoryId);
   }
 
   // ── Excel Export ───────────────────────────────────────────────────────────
@@ -472,7 +485,6 @@ export default function JobsPage() {
       const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
       if (!rows.length) { setImportError("The spreadsheet is empty."); return; }
       setImportRows(rows);
-      // Auto-detect mapping
       const headers = Object.keys(rows[0]);
       const autoMap: Record<string, string> = {};
       const match = (targets: string[]) =>
@@ -493,15 +505,15 @@ export default function JobsPage() {
     e.target.value = "";
   }
 
-  function handleImportConfirm() {
-    if (!user || !activeCategoryId) return;
+  async function handleImportConfirm() {
+    if (!activeCategoryId) return;
     let count = 0;
     for (const row of importRows) {
       const title = row[importMapping.title]?.toString().trim();
       if (!title) continue;
       const rawStatus = row[importMapping.status]?.toString().trim() as JobStatus;
       const rawPriority = row[importMapping.priority]?.toString().trim() as JobPriority;
-      addJob(user.id, {
+      await createJob({
         categoryId: activeCategoryId,
         title,
         company: row[importMapping.company]?.toString().trim() || undefined,
@@ -514,12 +526,16 @@ export default function JobsPage() {
       count++;
     }
     setImportModalOpen(false);
-    refresh(activeCategoryId);
+    await refresh(activeCategoryId);
     alert(`Imported ${count} job${count === 1 ? "" : "s"} into the active category.`);
   }
 
   // ── Sort icon ──────────────────────────────────────────────────────────────
   const SortIcon = sortAsc ? ArrowUp : ArrowDown;
+
+  if (loading && categories.length === 0) {
+    return <div className="flex h-40 items-center justify-center text-sm text-slate-400">Loading…</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -571,13 +587,11 @@ export default function JobsPage() {
 
         {/* ── Filter bar ──────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 p-3">
-          {/* Search */}
           <div className="relative min-w-[160px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input className="pl-8" placeholder="Search title, company, notes…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
-          {/* Status filter */}
           <select
             className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
             value={statusFilter}
@@ -586,7 +600,6 @@ export default function JobsPage() {
             {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
           </select>
 
-          {/* Priority filter */}
           <select
             className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
             value={priorityFilter}
@@ -595,7 +608,6 @@ export default function JobsPage() {
             {PRIORITY_FILTERS.map((o) => <option key={o}>{o}</option>)}
           </select>
 
-          {/* Sort */}
           <div className="flex items-center gap-1">
             <select
               className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
@@ -614,7 +626,6 @@ export default function JobsPage() {
             </button>
           </div>
 
-          {/* Duplicate filter toggle */}
           <button
             type="button"
             title="Show duplicates only"
@@ -629,7 +640,6 @@ export default function JobsPage() {
             <ArrowUpDown className="size-4" /> Duplicates
           </button>
 
-          {/* Bulk select toggle */}
           {!isDemo && (
             <button
               type="button"
@@ -645,7 +655,6 @@ export default function JobsPage() {
             </button>
           )}
 
-          {/* Bulk delete */}
           {selectionMode && selectedIds.size > 0 && (
             <button
               type="button"
@@ -730,7 +739,6 @@ export default function JobsPage() {
                             />
                           </TableCell>
                         )}
-                        {/* Star */}
                         <TableCell>
                           <button
                             type="button"
@@ -763,7 +771,6 @@ export default function JobsPage() {
                         <TableCell className="text-slate-600">{formatDate(job.dateAdded)}</TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">
-                            {/* Notes toggle */}
                             <button
                               type="button"
                               onClick={() => toggleNotes(job.id, job.notes)}
@@ -799,7 +806,6 @@ export default function JobsPage() {
                         </TableCell>
                       </TableRow>
 
-                      {/* ── Notes panel (expandable row) ────────────────── */}
                       {notesOpen && (
                         <TableRow key={`${job.id}-notes`} className="bg-slate-50">
                           <TableCell colSpan={selectionMode ? 10 : 9} className="py-2 px-4">
@@ -834,7 +840,6 @@ export default function JobsPage() {
           </Table>
         </div>
 
-        {/* Pagination */}
         <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>
             {visibleJobs.length} job{visibleJobs.length === 1 ? "" : "s"} found
@@ -863,7 +868,7 @@ export default function JobsPage() {
             {addCatError && <p className="text-sm text-red-600">{addCatError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setAddCatOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600">Add</Button>
+              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={addCatSaving}>Add</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -884,7 +889,7 @@ export default function JobsPage() {
             {renameCatError && <p className="text-sm text-red-600">{renameCatError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setRenameCatOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600">Save</Button>
+              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={renameCatSaving}>Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1012,7 +1017,6 @@ export default function JobsPage() {
               </div>
             </div>
 
-            {/* Duplicate warning */}
             {formSimilar.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 <p className="font-medium mb-1">⚠ Similar job{formSimilar.length > 1 ? "s" : ""} already exist{formSimilar.length === 1 ? "s" : ""}:</p>
@@ -1029,7 +1033,7 @@ export default function JobsPage() {
             {formError && <p className="text-sm text-red-600">{formError}</p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setJobModalOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600">Save</Button>
+              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={formSaving}>Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
