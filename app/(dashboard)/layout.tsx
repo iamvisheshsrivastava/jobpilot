@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { BarChart3, Brain, Briefcase, FileText, Inbox, LogOut, Menu, Settings, Sparkles, User2, X } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
-import { getCurrentUser, isDemoAccount, logOutUser, User } from "@/lib/jobpilot-store";
+
+const DEMO_EMAIL = "demo@jobpilot.app";
 
 const navItems = [
   { href: "/jobs", label: "Jobs", icon: Briefcase },
@@ -35,20 +37,18 @@ const titles: Record<string, string> = {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isDemo = isDemoAccount(user);
+
+  const user = session?.user ?? null;
+  const isDemo = user?.email === DEMO_EMAIL;
+  const loading = status === "loading";
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
+    if (status === "unauthenticated") {
       router.replace("/login");
-      return;
     }
-    setUser(currentUser);
-    setLoading(false);
-  }, [router]);
+  }, [status, router]);
 
   const initials = useMemo(() => {
     const label = user?.name || user?.email || "U";
@@ -56,13 +56,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       .split(/\s|@/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
+      .map((part: string) => part[0]?.toUpperCase())
       .join("");
   }, [user]);
 
   function handleLogout() {
-    logOutUser();
-    router.push("/login");
+    signOut({ callbackUrl: "/login" });
   }
 
   if (loading) {

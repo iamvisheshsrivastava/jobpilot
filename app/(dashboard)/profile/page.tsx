@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   BookOpen,
   Briefcase,
@@ -26,15 +27,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  DEMO_ACCOUNT_EMAIL,
   EducationEntry,
   ExperienceEntry,
-  getCurrentUser,
-  getUserProfile,
-  isDemoAccount,
-  saveUserProfile,
-  User,
+  fetchProfile,
+  saveProfile,
   UserProfile,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 
 const LANGUAGE_LEVELS = ["Native", "Fluent", "Advanced (C1)", "Upper-Intermediate (B2)", "Intermediate (B1)", "Basic (A2)"];
 
@@ -49,11 +48,25 @@ function shortId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+function emptyProfile(): UserProfile {
+  return {
+    userId: "",
+    skills: [],
+    experience: [],
+    education: [],
+    languages: [],
+    certifications: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { data: session } = useSession();
+  const isDemo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const isDemo = isDemoAccount(user);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Skills
@@ -72,21 +85,35 @@ export default function ProfilePage() {
   const [langLevel, setLangLevel] = useState(LANGUAGE_LEVELS[0]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) return;
-    setUser(u);
-    setProfile(getUserProfile(u.id));
+    fetchProfile()
+      .then((p) => setProfile(p))
+      .catch(() => setProfile(emptyProfile()))
+      .finally(() => setLoading(false));
   }, []);
 
   function update(partial: Partial<UserProfile>) {
     setProfile((prev) => prev ? { ...prev, ...partial } : null);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!profile || isDemo) return;
-    saveUserProfile(profile);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaving(true);
+    try {
+      const updated = await saveProfile({
+        summary: profile.summary,
+        cvText: profile.cvText,
+        experience: profile.experience,
+        education: profile.education,
+        skills: profile.skills,
+        languages: profile.languages,
+        certifications: profile.certifications,
+      });
+      setProfile((prev) => prev ? { ...prev, ...updated } : updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
   }
 
   // ── File upload ─────────────────────────────────────────────────────────────
@@ -99,7 +126,6 @@ export default function ProfilePage() {
       update({ cvText: text });
     } else if (file.name.endsWith(".pdf")) {
       try {
-        // Dynamic import of pdfjs-dist
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
         const arrayBuffer = await file.arrayBuffer();
@@ -118,7 +144,6 @@ export default function ProfilePage() {
     } else {
       alert("Supported formats: PDF, TXT, MD. Please convert your file or paste the text below.");
     }
-    // Reset file input
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -206,7 +231,7 @@ export default function ProfilePage() {
     update({ languages: profile.languages.filter((l) => l.language !== lang) });
   }
 
-  if (!profile) {
+  if (loading || !profile) {
     return <div className="flex h-40 items-center justify-center text-sm text-slate-400">Loading profile…</div>;
   }
 
@@ -215,15 +240,15 @@ export default function ProfilePage() {
       {/* Save bar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          Your profile is stored locally and used for AI-powered CV generation and job suitability checks.
+          Your profile is stored securely and used for AI-powered CV generation and job suitability checks.
         </p>
         <Button
           onClick={handleSave}
-          disabled={isDemo}
+          disabled={isDemo || saving}
           className="gap-2 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
         >
           <Save className="size-4" />
-          {saved ? "Saved ✓" : "Save Profile"}
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Save Profile"}
         </Button>
       </div>
 
@@ -232,37 +257,6 @@ export default function ProfilePage() {
           This is the demo profile — editing is disabled. Sign up for a free account to build your own profile.
         </div>
       )}
-
-      {/* ── Personal Info ─────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 font-semibold text-slate-900">Personal Information</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input id="fullName" value={profile.fullName || ""} onChange={(e) => update({ fullName: e.target.value })} placeholder="Your full name" disabled={isDemo} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="profileEmail">Email</Label>
-            <Input id="profileEmail" value={user?.email || ""} readOnly className="bg-slate-50 text-slate-500" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" value={profile.phone || ""} onChange={(e) => update({ phone: e.target.value })} placeholder="+49 176 00000000" disabled={isDemo} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="location">Location</Label>
-            <Input id="location" value={profile.location || ""} onChange={(e) => update({ location: e.target.value })} placeholder="Berlin, Germany" disabled={isDemo} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="linkedin">LinkedIn URL</Label>
-            <Input id="linkedin" value={profile.linkedin || ""} onChange={(e) => update({ linkedin: e.target.value })} placeholder="linkedin.com/in/username" disabled={isDemo} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="website">Website / Portfolio</Label>
-            <Input id="website" value={profile.website || ""} onChange={(e) => update({ website: e.target.value })} placeholder="yoursite.com" disabled={isDemo} />
-          </div>
-        </div>
-      </section>
 
       {/* ── Summary ──────────────────────────────────────────────────────── */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
@@ -494,9 +488,9 @@ export default function ProfilePage() {
 
       {/* Save button at bottom too */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isDemo} className="gap-2 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
+        <Button onClick={handleSave} disabled={isDemo || saving} className="gap-2 bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
           <Save className="size-4" />
-          {saved ? "Saved ✓" : "Save Profile"}
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Save Profile"}
         </Button>
       </div>
 

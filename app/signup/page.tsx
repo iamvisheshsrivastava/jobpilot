@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { Briefcase } from "lucide-react";
-
-import { signUpUser } from "@/lib/jobpilot-store";
+import { Briefcase, ArrowLeft } from "lucide-react";
+import { signIn } from "next-auth/react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,10 +33,29 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const result = await signUpUser({ name, email, password });
+
+    // Register via API
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() || undefined, email: email.trim(), password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setLoading(false);
+      setError(data.error || "Registration failed. Please try again.");
+      return;
+    }
+
+    // Auto sign-in after registration
+    const result = await signIn("credentials", {
+      email: email.trim(),
+      password,
+      redirect: false,
+    });
     setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
+    if (result?.error) {
+      setError("Account created but login failed. Please go to the login page.");
       return;
     }
     router.push("/jobs");
@@ -46,6 +64,9 @@ export default function SignupPage() {
   return (
     <main className="flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4">
       <div className="w-full max-w-sm">
+        <Link href="/" className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowLeft className="size-4" /> Back to home
+        </Link>
         {/* Card */}
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           {/* Logo */}

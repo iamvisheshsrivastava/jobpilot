@@ -26,14 +26,12 @@ import {
 } from "@/components/ui/card";
 import {
   Category,
-  getCategories,
-  getCurrentUser,
-  getJobs,
+  fetchCategories,
+  fetchJobs,
   JOB_PRIORITIES,
   JOB_STATUSES,
   JobWithCategory,
-  getResumePerformance,
-} from "@/lib/jobpilot-store";
+} from "@/lib/api";
 
 const statusColors: Record<string, string> = {
   "In Progress": "#f97316",
@@ -89,10 +87,13 @@ export default function AnalyticsPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
 
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user) return;
-    setCategories(getCategories(user.id));
-    setJobs(getJobs(user.id));
+    Promise.all([
+      fetchCategories(),
+      fetchJobs({ limit: 1000 }),
+    ]).then(([cats, jobsResp]) => {
+      setCategories(cats);
+      setJobs(jobsResp.jobs);
+    }).catch(() => {});
   }, []);
 
   const filteredJobs = useMemo(() => {
@@ -131,12 +132,7 @@ export default function AnalyticsPage() {
     }));
   }, [filteredJobs]);
 
-  // ── Resume Performance ────────────────────────────────────────────────────
-  const resumePerf = useMemo(() => {
-    const user = getCurrentUser();
-    if (!user) return [];
-    return getResumePerformance(user.id).filter((r) => r.applications > 0);
-  }, [filteredJobs]);
+  const resumePerf: never[] = [];
 
   const bestResume = useMemo(() => {
     if (!resumePerf.length) return null;

@@ -1,7 +1,7 @@
 // JobPilot Extension v2.0.0 — popup.js
 // Communicates with background.js for all API calls
 
-const API_BASE = 'http://localhost:3000' // dev; background.js also uses this
+const API_BASE = 'https://jobpilot-lime.vercel.app'
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const loginView       = document.getElementById('loginView')
