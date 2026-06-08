@@ -6,8 +6,6 @@ import { FormEvent, useState } from "react";
 import { Briefcase, ArrowLeft } from "lucide-react";
 import { signIn } from "next-auth/react";
 
-import { logInUser } from "@/lib/jobpilot-store";
-
 const DEMO_EMAIL = "demo@jobpilot.app";
 const DEMO_PASSWORD = "Demo123456";
 
@@ -22,9 +20,13 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
     setLoading(true);
-    const result = await logInUser(email, password);
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
     setLoading(false);
-    if (!result.ok) { setError(result.error); return; }
+    if (result?.error) { setError("Invalid email or password."); return; }
     router.push("/jobs");
   }
 
