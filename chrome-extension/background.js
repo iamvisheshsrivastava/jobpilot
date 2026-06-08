@@ -129,6 +129,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return
     }
 
+    // CHECK_SKILLS — AI skill match analysis
+    if (message.type === 'CHECK_SKILLS') {
+      try {
+        const { pageText } = message.payload || {}
+        const data = await apiPost('/api/skill-match', { jobDescription: pageText })
+        sendResponse({ ok: true, data })
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message })
+      }
+      return
+    }
+
     // SAVE_JOB — persist job to DB via backend
     if (message.type === 'SAVE_JOB') {
       try {

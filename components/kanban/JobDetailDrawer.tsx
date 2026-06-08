@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { X, ExternalLink, Star, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SkillMatch from "@/components/SkillMatch";
 import {
   JobWithCategory,
   JobStatus,
@@ -28,6 +29,10 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
   const [user, setUser] = useState(getCurrentUser());
   const demo = isDemoAccount(user);
 
+  // Resume versions state
+  const [resumeVersions, setResumeVersions] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedResumeVersionId, setSelectedResumeVersionId] = useState("");
+
   // Form state
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -48,6 +53,25 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
     setUser(getCurrentUser());
   }, []);
 
+  // Fetch resume versions from API
+  const fetchResumeVersions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/resume-versions");
+      if (res.ok) {
+        const data = await res.json();
+        setResumeVersions(data);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      fetchResumeVersions();
+    }
+  }, [open, fetchResumeVersions]);
+
   useEffect(() => {
     if (job) {
       setTitle(job.title || "");
@@ -63,6 +87,7 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
       setRecruiterLinkedIn(job.recruiterLinkedIn || "");
       setResumeUsed(job.resumeUsed || "");
       setApplicationNotes(job.applicationNotes || "");
+      setSelectedResumeVersionId(job.resumeVersionId || "");
       setSaved(false);
     }
   }, [job]);
@@ -201,11 +226,27 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
             </div>
           </section>
 
-          {/* Resume Used */}
+          {/* Resume Version (linked to ResumeVersion model) */}
           <section>
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Resume Used</h3>
-            <div className="space-y-1">
-              <Input value={resumeUsed} onChange={(e) => setResumeUsed(e.target.value)} placeholder="e.g. Data Scientist CV v3" disabled={demo} />
+            <div className="space-y-2">
+              <select
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+                value={selectedResumeVersionId}
+                onChange={(e) => {
+                  setSelectedResumeVersionId(e.target.value)
+                  const selected = resumeVersions.find((v) => v.id === e.target.value)
+                  if (selected) setResumeUsed(selected.name)
+                  if (!e.target.value) setResumeUsed("")
+                }}
+                disabled={demo}
+              >
+                <option value="">None (type below instead)</option>
+                {resumeVersions.map((rv) => (
+                  <option key={rv.id} value={rv.id}>{rv.name}</option>
+                ))}
+              </select>
+              <Input value={resumeUsed} onChange={(e) => setResumeUsed(e.target.value)} placeholder="Or type a custom name" disabled={demo} />
             </div>
           </section>
 
@@ -243,6 +284,11 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
               placeholder="Legacy notes field..."
               disabled={demo}
             />
+          </section>
+
+          {/* Skill Match */}
+          <section>
+            <SkillMatch jobDescription={applicationNotes || comments || ""} />
           </section>
         </div>
 

@@ -201,6 +201,56 @@
     .action-row .btn { flex: 1; }
 
     .divider { height: 1px; background: #e2e8f0; margin: 12px 0; }
+
+    /* ── Site badge ── */
+    .site-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      display: inline-block;
+    }
+    .site-badge.linkedin { background: #e8f4fd; color: #0a66c2; border: 1px solid #b3d4f0; }
+    .site-badge.workday { background: #f0f4f8; color: #2c5f2d; border: 1px solid #c8d6e5; }
+    .site-badge.greenhouse { background: #f0fdf4; color: #1a7d36; border: 1px solid #b8e6c8; }
+    .site-badge.lever { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .site-badge.fallback { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    /* ── Description textarea ── */
+    .desc-textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      color: #374151;
+      background: #f9fafb;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .desc-textarea:focus { border-color: #3b82f6; }
+    .desc-textarea.expanded { cursor: auto; }
+    .desc-toggle {
+      font-size: 11px;
+      color: #3b82f6;
+      cursor: pointer;
+      text-decoration: none;
+      margin-left: 6px;
+    }
+    .desc-toggle:hover { text-decoration: underline; }
+
+    /* ── Skill chips ── */
+    .skill-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .skill-chip { font-size: 10px; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 3px; font-weight: 500; }
+    .skill-chip.matched { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .skill-chip.missing { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .skill-chip.nice-matched { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .skill-chip.nice-missing { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
   </style>
 </head>
 <body>
@@ -256,6 +306,9 @@
   <div class="tab-panel active" id="tab-save">
     <div class="status-msg" id="saveStatus"></div>
 
+    <!-- Site badge (shown after capture) -->
+    <div class="site-badge" id="siteBadge" style="display:none"></div>
+
     <!-- Extracted job info (shown after capture) -->
     <div class="extracted-box" id="extractedBox">
       <div class="extracted-title">Extracted Details</div>
@@ -269,9 +322,22 @@
           <input type="text" id="jobCompany" placeholder="Company" />
         </div>
         <div class="field">
+          <label>Salary</label>
+          <input type="text" id="jobSalary" placeholder="e.g. $80k - $120k" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
           <label>Deadline</label>
           <input type="text" id="jobDeadline" placeholder="YYYY-MM-DD" />
         </div>
+      </div>
+      <div class="field">
+        <label>
+          <span>Job Description</span>
+          <span class="desc-toggle" id="descToggle">expand</span>
+        </label>
+        <textarea id="jobDescription" class="desc-textarea" rows="3" placeholder="Job description will appear here…" readonly></textarea>
       </div>
     </div>
 
@@ -323,9 +389,17 @@
       </div>
     </div>
 
+    <!-- Skill Match Results -->
+    <div class="skill-match-results" id="skillMatchResults" style="display:none">
+      <div class="extracted-title">Skill Match</div>
+      <div class="skill-chips" id="skillChips"></div>
+      <div class="skill-summary-text" id="skillSummaryText"></div>
+    </div>
+
     <div class="action-row">
       <button class="btn btn-secondary" id="captureBtn">Capture This Job</button>
       <button class="btn btn-secondary" id="suitBtn">Check Fit</button>
+      <button class="btn btn-secondary" id="skillBtn">Check Skills</button>
     </div>
 
     <div class="divider"></div>

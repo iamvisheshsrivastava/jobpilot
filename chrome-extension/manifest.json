@@ -20,7 +20,11 @@
   },
   "permissions": ["tabs", "activeTab", "storage", "scripting"],
   "host_permissions": [
-    "https://jobpilot-lime.vercel.app/*"
+    "https://jobpilot-lime.vercel.app/*",
+    "https://www.linkedin.com/*",
+    "https://*.myworkday.com/*",
+    "https://boards.greenhouse.io/*",
+    "https://jobs.lever.co/*"
   ],
   "content_scripts": [
     {

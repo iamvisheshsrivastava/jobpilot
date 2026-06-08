@@ -1,13 +1,18 @@
 import crypto from 'crypto'
 import { auth } from './auth'
 
+// Validate required env vars at module load time — never silently use an empty key
+if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
+  throw new Error('AUTH_SECRET env var is not set')
+}
+
 // Verify a Bearer token issued by /api/auth/token (for Chrome extension)
 export async function verifyExtToken(token: string): Promise<{ id: string; email: string; name?: string | null } | null> {
   try {
     const [payload, sig] = token.split('.')
     if (!payload || !sig) return null
 
-    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || ''
+    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET!
     const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
     if (expected !== sig) return null
 

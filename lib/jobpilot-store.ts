@@ -99,6 +99,7 @@ export type Job = {
   duplicateGroupId?: string; createdAt: string; updatedAt: string;
   recruiterName?: string; recruiterEmail?: string; recruiterLinkedIn?: string;
   resumeUsed?: string; resumeId?: string; resumeVersion?: number; applicationNotes?: string;
+  resumeVersionId?: string;
 };
 
 export type ApiKeyRecord = {

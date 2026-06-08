@@ -33,7 +33,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json()
-  const { title, company, link, categoryId, status, priority, comments, deadline, pageNote } = body
+  const { title, company, link, categoryId, status, priority, comments, deadline, pageNote, notes, resumeVersion, recruiterName, recruiterEmail, applicationNotes, resumeVersionId } = body
 
   if (categoryId) {
     const cat = await prisma.category.findFirst({ where: { id: categoryId, userId: user.id } })
@@ -54,6 +54,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (priority) data.priority = priority as JobPriority
   if (comments !== undefined) data.comments = comments?.trim() || null
   if (deadline !== undefined) data.deadline = deadline ? new Date(deadline) : null
+  if (recruiterName !== undefined) data.recruiterName = recruiterName?.trim() || null
+  if (recruiterEmail !== undefined) data.recruiterEmail = recruiterEmail?.trim() || null
+  if (resumeVersion !== undefined) data.resumeUsed = resumeVersion?.trim() || null
+  if (applicationNotes !== undefined) data.applicationNotes = applicationNotes?.trim() || null
+  if (notes !== undefined) data.notes = notes?.trim() || null
+  if (resumeVersionId !== undefined) data.resumeVersionId = resumeVersionId || null
 
   const updated = await prisma.$transaction(async (tx) => {
     const updatedJob = await tx.job.update({

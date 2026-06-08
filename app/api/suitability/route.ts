@@ -68,6 +68,11 @@ Only output valid JSON, no other text.`
     const text = data.choices?.[0]?.message?.content || '{}'
     try {
       const parsed = JSON.parse(text)
+      // Add `reason` field for Chrome extension backward compatibility
+      // (popup.js reads resp.data?.reason)
+      if (parsed.recommendation && !parsed.reason) {
+        parsed.reason = parsed.recommendation
+      }
       return NextResponse.json(parsed)
     } catch {
       return NextResponse.json({ raw: text })

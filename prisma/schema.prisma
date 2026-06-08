@@ -15,7 +15,7 @@ datasource db {
 
 // enum JobStatus  { IN_PROGRESS APPLIED INTERVIEW OFFER LOOK_AGAIN REJECTED NOT_SUITABLE EXPIRED_FILLED }
 // enum JobPriority { SUPER_HIGH HIGH MEDIUM LOW }
-// enum LlmProvider { GROQ OPENROUTER }
+// enum LlmProvider { GROQ OPENROUTER OPENAI ANTHROPIC GEMINI }
 
 model User {
   id           String      @id @default(cuid())
@@ -25,9 +25,10 @@ model User {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  categories   Category[]
-  apiKeys      ApiKey[]
-  profile      UserProfile?
+  categories     Category[]
+  apiKeys        ApiKey[]
+  profile        UserProfile?
+  resumeVersions ResumeVersion[]
 
   @@map("users")
 }
@@ -98,17 +99,34 @@ model Job {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Kanban / extended fields
-  recruiterName     String?  @map("recruiter_name")
-  recruiterEmail    String?  @map("recruiter_email")
-  recruiterLinkedIn String?  @map("recruiter_linkedin")
-  resumeUsed        String?  @map("resume_used")
-  applicationNotes  String?  @map("application_notes")
+  recruiterName      String?  @map("recruiter_name")
+  recruiterEmail     String?  @map("recruiter_email")
+  recruiterLinkedIn  String?  @map("recruiter_linkedin")
+  resumeUsed         String?  @map("resume_used")
+  applicationNotes   String?  @map("application_notes")
+  resumeVersionId    String?  @map("resume_version_id")
 
-  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  note        JobNote?
-  history     JobHistory[]
+  category     Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  resumeVersion ResumeVersion? @relation("JobResume", fields: [resumeVersionId], references: [id])
+  note         JobNote?
+  history      JobHistory[]
 
   @@map("jobs")
+}
+
+model ResumeVersion {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  fileUrl   String?  @map("file_url")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs Job[] @relation("JobResume")
+
+  @@map("resume_versions")
 }
 
 model JobNote {

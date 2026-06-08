@@ -31,6 +31,7 @@ const DB_TO_UI_STATUS: Record<string, JobStatus> = {
   IN_PROGRESS: 'In Progress',
   APPLIED: 'Applied',
   INTERVIEW: 'Interview',
+  OFFER: 'Offer',
   LOOK_AGAIN: 'Look Again',
   REJECTED: 'Rejected',
   NOT_SUITABLE: 'Not Suitable',
@@ -41,6 +42,7 @@ const UI_TO_DB_STATUS: Record<JobStatus, string> = {
   'In Progress': 'IN_PROGRESS',
   Applied: 'APPLIED',
   Interview: 'INTERVIEW',
+  Offer: 'OFFER',
   'Look Again': 'LOOK_AGAIN',
   Rejected: 'REJECTED',
   'Not Suitable': 'NOT_SUITABLE',
@@ -103,6 +105,13 @@ function mapJob(raw: any): JobWithCategory {
     duplicateGroupId: raw.duplicateGroupId ?? raw.duplicate_group_id ?? undefined,
     createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? raw.updated_at ?? new Date().toISOString(),
+    recruiterName: raw.recruiterName ?? raw.recruiter_name ?? undefined,
+    recruiterEmail: raw.recruiterEmail ?? raw.recruiter_email ?? undefined,
+    recruiterLinkedIn: raw.recruiterLinkedIn ?? raw.recruiter_linkedin ?? undefined,
+    resumeUsed: raw.resumeUsed ?? raw.resume_used ?? undefined,
+    applicationNotes: raw.applicationNotes ?? raw.application_notes ?? undefined,
+    resumeId: raw.resumeId ?? raw.resume_id ?? undefined,
+    resumeVersionId: raw.resumeVersionId ?? raw.resume_version_id ?? undefined,
   }
 }
 

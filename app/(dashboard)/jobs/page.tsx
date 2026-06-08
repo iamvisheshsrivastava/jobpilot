@@ -106,6 +106,7 @@ function statusClass(status: JobStatus) {
     "In Progress": "bg-orange-100 text-orange-700",
     Applied: "bg-blue-100 text-blue-700",
     Interview: "bg-violet-100 text-violet-700",
+    Offer: "bg-emerald-100 text-emerald-700",
     "Look Again": "bg-amber-100 text-amber-700",
     Rejected: "bg-red-100 text-red-700",
     "Not Suitable": "bg-slate-100 text-slate-700",
@@ -230,8 +231,17 @@ export default function JobsPage() {
   // Bulk delete confirm
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-  // View mode: "list" or "kanban"
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  // View mode: "list" or "kanban" (persisted to localStorage)
+  const [viewMode, setViewMode] = useState<"list" | "kanban">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("jobpilot_view") as "list" | "kanban") || "list"
+    }
+    return "list"
+  });
+
+  useEffect(() => {
+    localStorage.setItem("jobpilot_view", viewMode)
+  }, [viewMode])
 
   // Import
   const importRef = useRef<HTMLInputElement>(null);
@@ -723,7 +733,7 @@ export default function JobsPage() {
           jobs={jobs}
           categories={categories}
           activeCategoryId={activeCategoryId}
-          user={user}
+          user={session?.user ? { id: (session.user as any).id ?? '' } : null}
           isDemo={isDemo}
           search={search}
           priorityFilter={priorityFilter}

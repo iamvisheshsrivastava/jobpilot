@@ -17,6 +17,7 @@ const openDashboard   = document.getElementById('openDashboard')
 
 const captureBtn      = document.getElementById('captureBtn')
 const suitBtn         = document.getElementById('suitBtn')
+const skillBtn        = document.getElementById('skillBtn')
 const saveBtn         = document.getElementById('saveBtn')
 const categorySelect  = document.getElementById('categorySelect')
 const statusSelect    = document.getElementById('statusSelect')
@@ -24,9 +25,13 @@ const prioritySelect  = document.getElementById('prioritySelect')
 
 const jobTitle        = document.getElementById('jobTitle')
 const jobCompany      = document.getElementById('jobCompany')
+const jobSalary       = document.getElementById('jobSalary')
 const jobDeadline     = document.getElementById('jobDeadline')
+const jobDescription  = document.getElementById('jobDescription')
+const descToggle      = document.getElementById('descToggle')
 const extractedBox    = document.getElementById('extractedBox')
 const saveStatus      = document.getElementById('saveStatus')
+const siteBadge       = document.getElementById('siteBadge')
 const verdictEl       = document.getElementById('verdict')
 const verdictLabel    = document.getElementById('verdictLabel')
 const verdictReason   = document.getElementById('verdictReason')
@@ -36,6 +41,7 @@ const skillMissing    = document.getElementById('skillMissingTags')
 const skillRelated    = document.getElementById('skillRelatedTags')
 
 let capturedPageText = ''
+let currentSite = ''
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,11 +56,46 @@ function hideMsg(el) {
 }
 
 function showVerdict(verdict, reason) {
-  const labels = { suitable: '✓ Suitable', somewhat: '⚠ Somewhat Suitable', 'not-suitable': '✗ Not Suitable' }
+  const labels = { suitable: '\u2713 Suitable', somewhat: '\u26A0 Somewhat Suitable', 'not-suitable': '\u2717 Not Suitable' }
   verdictLabel.textContent = labels[verdict] || verdict
   verdictReason.textContent = reason || ''
   verdictEl.className = 'verdict show ' + verdict
 }
+
+function showSiteBadge(site, siteName) {
+  currentSite = site
+  siteBadge.textContent = 'Captured from ' + siteName
+  siteBadge.className = 'site-badge ' + site
+  siteBadge.style.display = 'inline-block'
+}
+
+function hideSiteBadge() {
+  siteBadge.style.display = 'none'
+  currentSite = ''
+}
+
+function resetCaptureUI() {
+  hideSiteBadge()
+  extractedBox.className = 'extracted-box'
+  verdictEl.className = 'verdict'
+  saveBtn.disabled = true
+  capturedPageText = ''
+}
+
+// ── Description textarea expand/collapse ──
+
+let descExpanded = false
+
+descToggle.addEventListener('click', () => {
+  descExpanded = !descExpanded
+  jobDescription.rows = descExpanded ? 12 : 3
+  descToggle.textContent = descExpanded ? 'collapse' : 'expand'
+  if (descExpanded) {
+    jobDescription.classList.add('expanded')
+  } else {
+    jobDescription.classList.remove('expanded')
+  }
+})
 
 // ── Auth flow ─────────────────────────────────────────────────────────────────
 
@@ -87,7 +128,7 @@ loginBtn.addEventListener('click', async () => {
     return
   }
   loginBtn.disabled = true
-  loginBtn.textContent = 'Logging in…'
+  loginBtn.textContent = 'Logging in\u2026'
   hideMsg(loginError)
 
   chrome.runtime.sendMessage({ type: 'LOGIN', payload: { email, password } }, (resp) => {
@@ -106,10 +147,7 @@ logoutBtn.addEventListener('click', () => {
     showLogin()
     loginEmail.value = ''
     loginPassword.value = ''
-    extractedBox.className = 'extracted-box'
-    verdictEl.className = 'verdict'
-    saveBtn.disabled = true
-    capturedPageText = ''
+    resetCaptureUI()
   })
 })
 
@@ -130,7 +168,7 @@ function loadCategories() {
     if (!resp.categories?.length) {
       const opt = document.createElement('option')
       opt.value = ''
-      opt.textContent = 'No categories — create one in dashboard'
+      opt.textContent = 'No categories \u2014 create one in dashboard'
       categorySelect.appendChild(opt)
       return
     }
@@ -148,7 +186,7 @@ function loadCategories() {
 captureBtn.addEventListener('click', () => {
   hideMsg(saveStatus)
   verdictEl.className = 'verdict'
-  showMsg(saveStatus, 'Extracting job details with AI…', 'processing')
+  showMsg(saveStatus, 'Extracting job details\u2026', 'processing')
   captureBtn.disabled = true
   saveBtn.disabled = true
 
@@ -160,39 +198,93 @@ captureBtn.addEventListener('click', () => {
       return
     }
 
-    chrome.scripting.executeScript(
-      { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [10000] },
-      (results) => {
-        if (chrome.runtime.lastError) {
-          showMsg(saveStatus, 'Cannot read this page: ' + chrome.runtime.lastError.message, 'error')
-          captureBtn.disabled = false
-          return
-        }
+    // Send EXTRACT_JOB to content script for site-specific extraction
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB' }, (resp) => {
+      captureBtn.disabled = false
 
-        const frames = (results || [])
-          .map((r) => r?.result)
-          .filter((r) => r?.text)
-          .sort((a, b) => (b.score || 0) - (a.score || 0))
-        const pageText = frames[0]?.text || ''
-        capturedPageText = pageText
+      if (chrome.runtime.lastError || !resp?.ok) {
+        // Content script may not be injected yet or EXTRACT_JOB not handled;
+        // fall back to legacy approach with executeScript
+        fallbackCapture(tab)
+        return
+      }
 
-        chrome.runtime.sendMessage({ type: 'ENRICH_JOB', payload: { pageText } }, (resp) => {
-          captureBtn.disabled = false
-          if (chrome.runtime.lastError || !resp?.ok) {
-            showMsg(saveStatus, resp?.error || 'Enrichment failed', 'error')
-            return
+      const data = resp.data
+      capturedPageText = data.jobDescription || ''
+
+      // Populate form fields
+      jobTitle.value = data.jobTitle || ''
+      jobCompany.value = data.company || ''
+      jobSalary.value = data.salary || ''
+      jobDeadline.value = data.deadline || ''
+      jobDescription.value = data.jobDescription || ''
+
+      // Reset description toggle
+      descExpanded = false
+      jobDescription.rows = 3
+      jobDescription.classList.remove('expanded')
+      descToggle.textContent = 'expand'
+
+      // Show site badge
+      showSiteBadge(data._site || 'fallback', data._siteName || 'Generic')
+
+      // Show extracted box
+      extractedBox.className = 'extracted-box show'
+      saveBtn.disabled = false
+      hideMsg(saveStatus)
+
+      // Also call enrichment for backward compatibility (title/company/deadline enrichment)
+      if (data.jobDescription) {
+        chrome.runtime.sendMessage({ type: 'ENRICH_JOB', payload: { pageText: data.jobDescription } }, (enrichResp) => {
+          if (enrichResp?.ok && enrichResp.data) {
+            // Only overwrite if the site-specific extraction didn't find it
+            if (!jobTitle.value && enrichResp.data.title) jobTitle.value = enrichResp.data.title
+            if (!jobCompany.value && enrichResp.data.company) jobCompany.value = enrichResp.data.company
+            if (!jobDeadline.value && enrichResp.data.deadline) jobDeadline.value = enrichResp.data.deadline
           }
-          jobTitle.value = resp.data?.title || ''
-          jobCompany.value = resp.data?.company || ''
-          jobDeadline.value = resp.data?.deadline || ''
-          extractedBox.className = 'extracted-box show'
-          saveBtn.disabled = false
-          hideMsg(saveStatus)
         })
-      },
-    )
+      }
+    })
   })
 })
+
+/**
+ * Fallback capture when content script doesn't support EXTRACT_JOB.
+ * Uses the legacy executeScript approach.
+ */
+function fallbackCapture(tab) {
+  chrome.scripting.executeScript(
+    { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [10000] },
+    (results) => {
+      if (chrome.runtime.lastError) {
+        showMsg(saveStatus, 'Cannot read this page: ' + chrome.runtime.lastError.message, 'error')
+        return
+      }
+
+      const frames = (results || [])
+        .map((r) => r?.result)
+        .filter((r) => r?.text)
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+      const pageText = frames[0]?.text || ''
+      capturedPageText = pageText
+
+      chrome.runtime.sendMessage({ type: 'ENRICH_JOB', payload: { pageText } }, (resp) => {
+        if (chrome.runtime.lastError || !resp?.ok) {
+          showMsg(saveStatus, resp?.error || 'Enrichment failed', 'error')
+          return
+        }
+        jobTitle.value = resp.data?.title || ''
+        jobCompany.value = resp.data?.company || ''
+        jobDeadline.value = resp.data?.deadline || ''
+        jobDescription.value = pageText
+        showSiteBadge('fallback', 'Generic')
+        extractedBox.className = 'extracted-box show'
+        saveBtn.disabled = false
+        hideMsg(saveStatus)
+      })
+    },
+  )
+}
 
 // ── Suitability ───────────────────────────────────────────────────────────────
 
@@ -202,7 +294,7 @@ suitBtn.addEventListener('click', () => {
     return
   }
   suitBtn.disabled = true
-  showMsg(saveStatus, 'Analysing job fit…', 'processing')
+  showMsg(saveStatus, 'Analysing job fit\u2026', 'processing')
 
   chrome.runtime.sendMessage({ type: 'CHECK_SUITABILITY', payload: { pageText: capturedPageText } }, (resp) => {
     suitBtn.disabled = false
@@ -211,7 +303,7 @@ suitBtn.addEventListener('click', () => {
       showMsg(saveStatus, resp?.error || 'Suitability check failed', 'error')
       return
     }
-    showVerdict(resp.data?.verdict, resp.data?.reason)
+    showVerdict(resp.data?.verdict, resp.data?.reason ?? resp.data?.recommendation)
   })
 })
 
@@ -230,50 +322,59 @@ saveBtn.addEventListener('click', () => {
   }
 
   saveBtn.disabled = true
-  showMsg(saveStatus, 'Saving…', 'processing')
+  showMsg(saveStatus, 'Saving\u2026', 'processing')
 
-  // Also capture full page text for note storage
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tab = tabs?.[0]
-    chrome.scripting.executeScript(
-      { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [50000] },
-      (results) => {
-        const frames = (results || []).map((r) => r?.result).filter((r) => r?.text).sort((a, b) => (b.score || 0) - (a.score || 0))
-        const fullPageText = frames[0]?.text || ''
-
-        chrome.runtime.sendMessage(
-          {
-            type: 'SAVE_JOB',
-            payload: {
-              title,
-              company: jobCompany.value.trim() || null,
-              link: tab?.url || null,
-              categoryId,
-              status: statusSelect.value,
-              priority: prioritySelect.value,
-              deadline: jobDeadline.value || null,
-              pageNote: fullPageText || null,
-            },
-          },
-          (resp) => {
-            saveBtn.disabled = false
-            if (chrome.runtime.lastError || !resp?.ok) {
-              showMsg(saveStatus, resp?.error || 'Save failed', 'error')
-              return
-            }
-            showMsg(saveStatus, `Saved to "${categorySelect.options[categorySelect.selectedIndex]?.text}"!`, 'success')
-            // Reset form
-            extractedBox.className = 'extracted-box'
-            verdictEl.className = 'verdict'
-            capturedPageText = ''
-            saveBtn.disabled = true
-            jobTitle.value = ''
-            jobCompany.value = ''
-            jobDeadline.value = ''
-          },
-        )
+  // Use the captured job description or fall back to page text extraction
+  let pageNote = capturedPageText || jobDescription.value
+  const doSave = (note) => {
+    chrome.runtime.sendMessage(
+      {
+        type: 'SAVE_JOB',
+        payload: {
+          title,
+          company: jobCompany.value.trim() || null,
+          link: null, // will be filled below from tab URL
+          categoryId,
+          status: statusSelect.value,
+          priority: prioritySelect.value,
+          deadline: jobDeadline.value || null,
+          salary: jobSalary.value.trim() || null,
+          pageNote: note || null,
+        },
+      },
+      (resp) => {
+        saveBtn.disabled = false
+        if (chrome.runtime.lastError || !resp?.ok) {
+          showMsg(saveStatus, resp?.error || 'Save failed', 'error')
+          return
+        }
+        showMsg(saveStatus, 'Saved to "' + (categorySelect.options[categorySelect.selectedIndex]?.text || '') + '"!', 'success')
+        // Reset form
+        resetCaptureUI()
+        jobTitle.value = ''
+        jobCompany.value = ''
+        jobSalary.value = ''
+        jobDeadline.value = ''
+        jobDescription.value = ''
       },
     )
+  }
+
+  // Get current tab URL for the link field
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs?.[0]
+    if (!pageNote && tab) {
+      // Fallback: extract full page text for note
+      chrome.scripting.executeScript(
+        { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [50000] },
+        (results) => {
+          const frames = (results || []).map((r) => r?.result).filter((r) => r?.text).sort((a, b) => (b.score || 0) - (a.score || 0))
+          doSave(frames[0]?.text || '')
+        },
+      )
+    } else {
+      doSave(pageNote)
+    }
   })
 })
 
@@ -346,7 +447,7 @@ function extractJobPostingText(limit) {
 
   function normalize(text) {
     return String(text || '')
-      .replace(/ /g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n')
+      .replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n')
       .replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n')
       .split('\n').map(l => l.trim()).filter(Boolean).join('\n').trim()
   }
@@ -377,6 +478,74 @@ function extractJobPostingText(limit) {
   const best = candidates[0]?.text || textFromElement(document.body) || ''
   return { text: best.slice(0, maxChars), score: candidates[0]?.score || 0, length: best.length, url: location.href }
 }
+
+// ── Skill Match ───────────────────────────────────────────────────────────────
+const skillMatchResults = document.getElementById('skillMatchResults')
+const skillChips = document.getElementById('skillChips')
+const skillSummaryText = document.getElementById('skillSummaryText')
+
+skillBtn.addEventListener('click', () => {
+  if (!capturedPageText) {
+    showMsg(saveStatus, 'Capture the job first before checking skills', 'error')
+    return
+  }
+  skillBtn.disabled = true
+  showMsg(saveStatus, 'Analyzing skills\u2026', 'processing')
+
+  chrome.runtime.sendMessage({ type: 'CHECK_SKILLS', payload: { pageText: capturedPageText } }, (resp) => {
+    skillBtn.disabled = false
+    hideMsg(saveStatus)
+    if (chrome.runtime.lastError || !resp?.ok) {
+      showMsg(saveStatus, resp?.error || 'Skill analysis failed', 'error')
+      return
+    }
+
+    const data = resp.data
+    skillMatchResults.style.display = 'block'
+    skillChips.innerHTML = ''
+
+    // Matched skills (green)
+    ;(data.matched || []).forEach((skill) => {
+      const chip = document.createElement('span')
+      chip.className = 'skill-chip matched'
+      chip.textContent = '\u2713 ' + skill
+      skillChips.appendChild(chip)
+    })
+
+    // Missing skills (red)
+    ;(data.missing || []).forEach((skill) => {
+      const chip = document.createElement('span')
+      chip.className = 'skill-chip missing'
+      chip.textContent = '\u2717 ' + skill
+      skillChips.appendChild(chip)
+    })
+
+    // Nice-to-have matched (green)
+    ;(data.matchedNice || []).forEach((skill) => {
+      const chip = document.createElement('span')
+      chip.className = 'skill-chip nice-matched'
+      chip.textContent = '\u2713 ' + skill
+      skillChips.appendChild(chip)
+    })
+
+    // Nice-to-have missing (muted gray)
+    const unmatchedNice = (data.niceToHave || []).filter((s) => !(data.matchedNice || []).includes(s))
+    unmatchedNice.forEach((skill) => {
+      const chip = document.createElement('span')
+      chip.className = 'skill-chip nice-missing'
+      chip.textContent = skill
+      skillChips.appendChild(chip)
+    })
+
+    // Summary text
+    const totalRequired = (data.matched?.length || 0) + (data.missing?.length || 0)
+    if (totalRequired > 0) {
+      skillSummaryText.textContent = 'Match ' + (data.matched?.length || 0) + ' of ' + totalRequired + ' required skills. Missing: ' + (data.missing?.join(', ') || 'none') + '.'
+    } else {
+      skillSummaryText.textContent = ''
+    }
+  })
+})
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 checkAuth()

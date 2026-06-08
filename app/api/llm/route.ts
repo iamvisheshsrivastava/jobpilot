@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     where: { userId: user.id },
     orderBy: { updatedAt: 'desc' },
     take: 1,
+    select: { id: true, provider: true, encryptedKey: true, modelName: true },
   })
 
   if (!keys.length) {
@@ -39,15 +40,15 @@ export async function POST(req: Request) {
   }
 
   const provider = keyRecord.provider
-  // modelName is not stored in the new schema — use a sensible default per provider
+  // Use the user's chosen model if stored, otherwise fall back to a sensible default
   const modelDefaults: Record<string, string> = {
     GROQ: 'llama-3.3-70b-versatile',
     OPENROUTER: 'meta-llama/llama-3.1-8b-instruct:free',
-    OpenAI: 'gpt-4o-mini',
-    Anthropic: 'claude-3-5-haiku-20241022',
-    Gemini: 'gemini-1.5-flash',
+    OPENAI: 'gpt-4o-mini',
+    ANTHROPIC: 'claude-3-5-haiku-20241022',
+    GEMINI: 'gemini-1.5-flash',
   }
-  const model = modelDefaults[provider] ?? 'gpt-4o-mini'
+  const model = keyRecord.modelName ?? modelDefaults[provider] ?? 'gpt-4o-mini'
 
   try {
     let text = ''
