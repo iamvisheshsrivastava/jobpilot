@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { BarChart3, Briefcase, LogOut, Menu, Settings, Sparkles, User2, X } from "lucide-react";
+import { BarChart3, Brain, Briefcase, FileText, Inbox, LogOut, Menu, Settings, Sparkles, User2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { getCurrentUser, isDemoAccount, logOutUser, User } from "@/lib/jobpilot-store";
@@ -12,7 +12,11 @@ const navItems = [
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/profile", label: "My Profile", icon: User2 },
-  { href: "/generate-cv", label: "Generate CV", icon: Sparkles },
+  { href: "/skill-analysis", label: "Skill Analysis", icon: Sparkles },
+  { href: "/generate-cv", label: "Generate CV", icon: FileText },
+  { href: "/resumes", label: "Resumes", icon: FileText },
+  { href: "/insights", label: "Insights", icon: Brain },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -20,7 +24,11 @@ const titles: Record<string, string> = {
   "/jobs": "Jobs",
   "/analytics": "Analytics",
   "/profile": "My Profile",
+  "/skill-analysis": "Skill Analysis",
   "/generate-cv": "Generate CV",
+  "/resumes": "Resumes",
+  "/insights": "AI Resume Intelligence",
+  "/inbox": "Job Search Inbox",
   "/settings": "Settings",
 };
 

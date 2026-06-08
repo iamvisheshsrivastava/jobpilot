@@ -122,6 +122,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return
     }
 
+    // SKILL_ANALYSIS — AI skill extraction and gap analysis
+    if (message.type === 'SKILL_ANALYSIS') {
+      try {
+        const { pageText } = message.payload || {}
+        const data = await apiPost('/api/skill-analysis', { pageText })
+        sendResponse({ ok: true, data })
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message })
+      }
+      return
+    }
+
     // CHECK_SUITABILITY — AI suitability verdict via backend
     if (message.type === 'CHECK_SUITABILITY') {
       try {

@@ -179,6 +179,18 @@
     .contact-link:hover { text-decoration: underline; }
     .version { color: #94a3b8; font-size: 11px; margin-top: 12px; text-align: center; }
 
+    /* ── Skill Match Summary ── */
+    .skill-summary { margin-bottom: 10px; }
+    .skill-summary.hidden { display: none; }
+    .skill-summary h4 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .skill-summary .skill-group { margin-bottom: 6px; }
+    .skill-summary .skill-group-title { font-size: 11px; font-weight: 600; margin-bottom: 3px; }
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .skill-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; }
+    .skill-tag.matched { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .skill-tag.missing { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .skill-tag.related { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
     /* ── Signup link ── */
     .signup-link-row { font-size: 11px; color: #64748b; text-align: center; }
     .signup-link-row a { color: #3b82f6; cursor: pointer; text-decoration: none; }
@@ -267,6 +279,23 @@
     <div class="verdict" id="verdict">
       <div class="verdict-label" id="verdictLabel"></div>
       <div id="verdictReason"></div>
+    </div>
+
+    <!-- Skill Match Summary (shown after Check Fit) -->
+    <div class="skill-summary hidden" id="skillSummary">
+      <h4>Skill Match Summary</h4>
+      <div class="skill-group" id="skillMatchedGroup">
+        <div class="skill-group-title" style="color:#15803d">✓ Matched</div>
+        <div class="skill-tags" id="skillMatchedTags"></div>
+      </div>
+      <div class="skill-group" id="skillMissingGroup">
+        <div class="skill-group-title" style="color:#b91c1c">✗ Missing</div>
+        <div class="skill-tags" id="skillMissingTags"></div>
+      </div>
+      <div class="skill-group" id="skillRelatedGroup">
+        <div class="skill-group-title" style="color:#475569">~ Related</div>
+        <div class="skill-tags" id="skillRelatedTags"></div>
+      </div>
     </div>
 
     <div class="field">

@@ -87,6 +87,7 @@ async function ensureDemoAccount() {
       { title: "UX Researcher", company: "HelloFresh", status: "In Progress" as const, priority: "Low" as const, dateAdded: daysAgo(5) },
       { title: "Growth Product Manager", company: "Wolt", status: "Expired/Filled" as const, priority: "Medium" as const, dateAdded: daysAgo(35), comments: "Deadline passed. Position has been filled." },
       { title: "Senior Product Manager", company: "Booking.com Amsterdam", status: "Applied" as const, priority: "Super High" as const, dateAdded: daysAgo(1), deadline: daysFromNow(21) },
+      { title: "Product Lead", company: "Miro", status: "Offer" as const, priority: "Super High" as const, dateAdded: daysAgo(5), deadline: daysFromNow(14), comments: "Offer received! Negotiating terms." },
     ];
     for (const job of prJobs) addJob(user.id, { categoryId: prCat.id, ...job });
   }

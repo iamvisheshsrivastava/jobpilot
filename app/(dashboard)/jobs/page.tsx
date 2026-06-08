@@ -12,8 +12,10 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Columns3,
   Download,
   FileText,
+  List,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -67,6 +69,7 @@ import {
   User,
 } from "@/lib/jobpilot-store";
 import { cn } from "@/lib/utils";
+import KanbanBoard from "@/components/kanban/KanbanBoard";
 
 const ROWS_PER_PAGE = 10;
 const STATUS_FILTERS = ["All", ...JOB_STATUSES] as const;
@@ -79,7 +82,7 @@ const priorityRank: Record<JobPriority, number> = {
 };
 const statusRank: Record<JobStatus, number> = {
   Interview: 0, Applied: 1, "Look Again": 2, "In Progress": 3,
-  Rejected: 4, "Not Suitable": 5, "Expired/Filled": 6,
+  Offer: 4, Rejected: 5, "Not Suitable": 6, "Expired/Filled": 7,
 };
 
 // Duplicate group colours (cycling)
@@ -223,6 +226,9 @@ export default function JobsPage() {
 
   // Bulk delete confirm
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  // View mode: "list" or "kanban"
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
 
   // Import
   const importRef = useRef<HTMLInputElement>(null);
@@ -676,7 +682,50 @@ export default function JobsPage() {
         </div>
       </section>
 
+      {/* ── View switcher ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            <List className="size-4" /> List
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("kanban")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              viewMode === "kanban" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            <Columns3 className="size-4" /> Kanban
+          </button>
+        </div>
+      </div>
+
+      {/* ── Kanban Board ──────────────────────────────────────────────────── */}
+      {viewMode === "kanban" && (
+        <KanbanBoard
+          jobs={jobs}
+          categories={categories}
+          activeCategoryId={activeCategoryId}
+          user={user}
+          isDemo={isDemo}
+          search={search}
+          priorityFilter={priorityFilter}
+          showStarredOnly={false}
+          onRefresh={() => refresh(activeCategoryId)}
+          onOpenAddJob={openAddJob}
+        />
+      )}
+
       {/* ── Jobs table ───────────────────────────────────────────────────── */}
+      {viewMode === "list" && (
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <Table>
@@ -847,6 +896,7 @@ export default function JobsPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Add Category dialog ──────────────────────────────────────────── */}
       <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>

@@ -12,7 +12,7 @@ datasource db {
 // SQLite doesn't support native enums — stored as String with app-level validation
 // When migrating to PostgreSQL, uncomment the enum blocks below and add them back to fields
 
-// enum JobStatus  { IN_PROGRESS APPLIED INTERVIEW LOOK_AGAIN REJECTED NOT_SUITABLE EXPIRED_FILLED }
+// enum JobStatus  { IN_PROGRESS APPLIED INTERVIEW OFFER LOOK_AGAIN REJECTED NOT_SUITABLE EXPIRED_FILLED }
 // enum JobPriority { SUPER_HIGH HIGH MEDIUM LOW }
 // enum LlmProvider { GROQ OPENROUTER }
 
@@ -73,6 +73,13 @@ model Job {
   dateAdded   DateTime @default(now()) @map("date_added")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Kanban / extended fields
+  recruiterName     String?  @map("recruiter_name")
+  recruiterEmail    String?  @map("recruiter_email")
+  recruiterLinkedIn String?  @map("recruiter_linkedin")
+  resumeUsed        String?  @map("resume_used")
+  applicationNotes  String?  @map("application_notes")
 
   category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   note        JobNote?

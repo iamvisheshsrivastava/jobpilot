@@ -30,6 +30,10 @@ const saveStatus      = document.getElementById('saveStatus')
 const verdictEl       = document.getElementById('verdict')
 const verdictLabel    = document.getElementById('verdictLabel')
 const verdictReason   = document.getElementById('verdictReason')
+const skillSummaryEl  = document.getElementById('skillSummary')
+const skillMatched    = document.getElementById('skillMatchedTags')
+const skillMissing    = document.getElementById('skillMissingTags')
+const skillRelated    = document.getElementById('skillRelatedTags')
 
 let capturedPageText = ''
 
