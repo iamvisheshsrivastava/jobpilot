@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Briefcase, ArrowLeft } from "lucide-react";
-
-import { signUpUser } from "@/lib/jobpilot-store";
+import { signIn } from "next-auth/react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,10 +33,29 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const result = await signUpUser({ name, email, password });
+
+    // Register via API
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() || undefined, email: email.trim(), password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setLoading(false);
+      setError(data.error || "Registration failed. Please try again.");
+      return;
+    }
+
+    // Auto sign-in after registration
+    const result = await signIn("credentials", {
+      email: email.trim(),
+      password,
+      redirect: false,
+    });
     setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
+    if (result?.error) {
+      setError("Account created but login failed. Please go to the login page.");
       return;
     }
     router.push("/jobs");
