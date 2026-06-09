@@ -137,6 +137,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <LogOut className="size-4" />
             Log Out
           </button>
+          {/* About / version */}
+          <div className="mt-2 border-t border-slate-100 pt-2 px-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">About</p>
+            <a
+              href="https://jobpilot-lime.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-blue-500 hover:underline block"
+            >
+              🌐 Production
+            </a>
+            <p className="text-[10px] text-slate-400 mt-0.5">v2.1.0 · JobPilot</p>
+          </div>
         </div>
       </aside>
 

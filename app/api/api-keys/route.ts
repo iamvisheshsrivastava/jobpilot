@@ -30,13 +30,16 @@ export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { provider, key, modelName } = await req.json()
+  const body = await req.json()
+  const { key, modelName } = body
+  // Accept mixed-case provider names (e.g. "OpenRouter") — normalise to uppercase
+  const provider = typeof body.provider === 'string' ? body.provider.toUpperCase().replace(/\s/g, '') : ''
 
   if (!provider || !key?.trim()) {
     return NextResponse.json({ error: 'Provider and key are required' }, { status: 400 })
   }
 
-  if (!VALID_PROVIDERS.includes(provider)) {
+  if (!VALID_PROVIDERS.includes(provider as typeof VALID_PROVIDERS[number])) {
     return NextResponse.json({ error: 'Invalid provider. Use GROQ, OPENROUTER, OPENAI, ANTHROPIC, or GEMINI' }, { status: 400 })
   }
 

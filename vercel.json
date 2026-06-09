@@ -1,0 +1,12 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "main": false,
+      "production": true,
+      "UAT": true,
+      "testing": true
+    }
+  },
+  "buildCommand": "prisma generate && next build",
+  "framework": "nextjs"
+}

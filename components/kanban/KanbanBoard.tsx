@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -11,12 +11,10 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  useDroppable,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Search, Star, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   JobWithCategory,
   KANBAN_COLUMNS,
@@ -24,14 +22,8 @@ import {
   KANBAN_TO_STATUSES,
   KANBAN_HEADER_COLORS,
   STATUS_TO_KANBAN,
-  updateJob,
-  deleteJob,
-  toggleStarJob,
-  getCurrentUser,
-  isDemoAccount,
   Category,
   JobPriority,
-  JOB_PRIORITIES,
 } from "@/lib/jobpilot-store";
 import JobCard from "./JobCard";
 import JobDetailDrawer from "./JobDetailDrawer";
@@ -68,9 +60,17 @@ function sortCards(a: JobWithCategory, b: JobWithCategory): number {
   return b.dateAdded.localeCompare(a.dateAdded);
 }
 
+function DroppableColumn({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={cn(className, isOver && "ring-2 ring-blue-300 ring-inset")}>
+      {children}
+    </div>
+  );
+}
+
 export default function KanbanBoard({
   jobs,
-  categories,
   activeCategoryId,
   user,
   isDemo,
@@ -78,7 +78,6 @@ export default function KanbanBoard({
   priorityFilter,
   showStarredOnly,
   onRefresh,
-  onOpenAddJob,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drawerJob, setDrawerJob] = useState<JobWithCategory | null>(null);
@@ -123,13 +122,6 @@ export default function KanbanBoard({
     return map;
   }, [filteredJobs]);
 
-  // Find which column a job belongs to
-  function getColumn(jobId: string): KanbanColumn | null {
-    const job = filteredJobs.find((j) => j.id === jobId);
-    if (!job) return null;
-    return STATUS_TO_KANBAN[job.status] || "Saved";
-  }
-
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {
     setActiveId(event.active.id as string);
@@ -167,8 +159,11 @@ export default function KanbanBoard({
     const targetStatuses = KANBAN_TO_STATUSES[targetColumn];
     if (!targetStatuses.length) return;
 
-    updateJob(user.id, activeJob.id, { status: targetStatuses[0] });
-    onRefresh();
+    fetch(`/api/jobs/${activeJob.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: targetStatuses[0] }),
+    }).then(() => onRefresh());
   }
 
   // Move left/right
@@ -181,22 +176,27 @@ export default function KanbanBoard({
     const nextCol = KANBAN_COLUMNS[nextIdx];
     const targetStatuses = KANBAN_TO_STATUSES[nextCol];
     if (!targetStatuses.length) return;
-    updateJob(user.id, job.id, { status: targetStatuses[0] });
-    onRefresh();
+    fetch(`/api/jobs/${job.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: targetStatuses[0] }),
+    }).then(() => onRefresh());
   }
 
   function handleDelete(job: JobWithCategory) {
     if (!user || isDemo) return;
     if (window.confirm(`Delete "${job.title}"? This cannot be undone.`)) {
-      deleteJob(user.id, job.id);
-      onRefresh();
+      fetch(`/api/jobs/${job.id}`, { method: 'DELETE' }).then(() => onRefresh());
     }
   }
 
   function handleToggleStar(job: JobWithCategory) {
     if (!user || isDemo) return;
-    toggleStarJob(user.id, job.id);
-    onRefresh();
+    fetch(`/api/jobs/${job.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ starred: !job.starred }),
+    }).then(() => onRefresh());
   }
 
   function handleOpenDrawer(job: JobWithCategory) {
@@ -259,7 +259,8 @@ export default function KanbanBoard({
                 </div>
 
                 {/* Column body (droppable) */}
-                <div
+                <DroppableColumn
+                  id={col}
                   className={cn(
                     "flex-1 rounded-b-xl border border-t-0 border-slate-200 p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto",
                     "bg-slate-50/50",
@@ -272,7 +273,7 @@ export default function KanbanBoard({
                       </div>
                     ) : (
                       cards.map((job) => (
-                        <div key={job.id} onClick={() => handleOpenDrawer(job)}>
+                        <div key={job.id} onDoubleClick={() => handleOpenDrawer(job)}>
                           <JobCard
                             job={job}
                             columnIndex={colIdx}
@@ -287,7 +288,7 @@ export default function KanbanBoard({
                       ))
                     )}
                   </SortableContext>
-                </div>
+                </DroppableColumn>
               </div>
             );
           })}

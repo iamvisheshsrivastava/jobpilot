@@ -4,10 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 
 // Provider → base URL map (for OpenAI-compatible APIs)
+// Handles both DB-uppercase (GROQ, OPENROUTER, OPENAI) and display-cased (Groq, OpenRouter, OpenAI) values
 const OPENAI_COMPAT_URLS: Record<string, string> = {
   OpenAI: 'https://api.openai.com/v1',
+  OPENAI: 'https://api.openai.com/v1',
   Groq: 'https://api.groq.com/openai/v1',
+  GROQ: 'https://api.groq.com/openai/v1',
   OpenRouter: 'https://openrouter.ai/api/v1',
+  OPENROUTER: 'https://openrouter.ai/api/v1',
 }
 
 export async function POST(req: Request) {
@@ -53,7 +57,7 @@ export async function POST(req: Request) {
   try {
     let text = ''
 
-    if (provider === 'Anthropic') {
+    if (provider === 'Anthropic' || provider === 'ANTHROPIC') {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -71,7 +75,7 @@ export async function POST(req: Request) {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
       const data = await res.json()
       text = data.content?.[0]?.text ?? ''
-    } else if (provider === 'Gemini') {
+    } else if (provider === 'Gemini' || provider === 'GEMINI') {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
       const res = await fetch(url, {
         method: 'POST',

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { X, ExternalLink, Star, Save } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { X, ExternalLink, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +14,7 @@ import {
   JOB_STATUSES,
   JobPriority,
   JOB_PRIORITIES,
-  updateJob,
-  getCurrentUser,
-  isDemoAccount,
+  DEMO_ACCOUNT_EMAIL,
 } from "@/lib/jobpilot-store";
 
 interface JobDetailDrawerProps {
@@ -26,8 +25,8 @@ interface JobDetailDrawerProps {
 }
 
 export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDetailDrawerProps) {
-  const [user, setUser] = useState(getCurrentUser());
-  const demo = isDemoAccount(user);
+  const { data: session } = useSession();
+  const demo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
 
   // Resume versions state
   const [resumeVersions, setResumeVersions] = useState<Array<{ id: string; name: string }>>([]);
@@ -48,10 +47,6 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
   const [resumeUsed, setResumeUsed] = useState("");
   const [applicationNotes, setApplicationNotes] = useState("");
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
 
   // Fetch resume versions from API
   const fetchResumeVersions = useCallback(async () => {
@@ -92,26 +87,40 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
     }
   }, [job]);
 
-  function handleSave() {
-    if (!user || !job || demo) return;
-    updateJob(user.id, job.id, {
-      title,
-      company: company || undefined,
-      link: link || undefined,
-      status,
-      priority,
-      deadline: deadline || undefined,
-      comments: comments || undefined,
-      notes: notes || undefined,
-      recruiterName: recruiterName || undefined,
-      recruiterEmail: recruiterEmail || undefined,
-      recruiterLinkedIn: recruiterLinkedIn || undefined,
-      resumeUsed: resumeUsed || undefined,
-      applicationNotes: applicationNotes || undefined,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    onSaved();
+  async function handleSave() {
+    if (!job || demo) return;
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          company: company || null,
+          link: link || null,
+          status,
+          priority,
+          deadline: deadline || null,
+          comments: comments || null,
+          notes: notes || null,
+          recruiterName: recruiterName || null,
+          recruiterEmail: recruiterEmail || null,
+          recruiterLinkedIn: recruiterLinkedIn || null,
+          resumeVersion: resumeUsed || null,
+          applicationNotes: applicationNotes || null,
+          resumeVersionId: selectedResumeVersionId || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Save failed' }));
+        console.error('[JobDetailDrawer] save error:', err);
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      onSaved();
+    } catch (err) {
+      console.error('[JobDetailDrawer] save error:', err);
+    }
   }
 
   if (!open || !job) return null;

@@ -25,6 +25,7 @@ import {
   Star,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -141,12 +142,23 @@ function CategoryMenu({
   onDelete: (cat: Category) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 4, left: r.right - 144 });
+    }
+    setOpen((v) => !v);
+  }
 
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleOpen}
         className="flex size-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         aria-label="Category actions"
       >
@@ -154,8 +166,11 @@ function CategoryMenu({
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-md">
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-50 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -174,6 +189,40 @@ function CategoryMenu({
         </>
       )}
     </div>
+  );
+}
+
+// ── Sortable column header ─────────────────────────────────────────────────
+function SortableHead({
+  label,
+  className,
+  sortBy,
+  sortAsc,
+  setSortBy,
+  setSortAsc,
+}: {
+  label: SortOption;
+  className?: string;
+  sortBy: SortOption;
+  sortAsc: boolean;
+  setSortBy: (v: SortOption) => void;
+  setSortAsc: (fn: (v: boolean) => boolean) => void;
+}) {
+  const active = sortBy === label;
+  const Icon = active ? (sortAsc ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead
+      className={cn("cursor-pointer select-none whitespace-nowrap", className)}
+      onClick={() => {
+        if (sortBy === label) setSortAsc((v) => !v);
+        else { setSortBy(label); setSortAsc(() => false); }
+      }}
+    >
+      <span className={cn("inline-flex items-center gap-1", active ? "text-blue-600" : "")}>
+        {label}
+        <Icon className={cn("size-3.5", active ? "text-blue-500" : "text-slate-300")} />
+      </span>
+    </TableHead>
   );
 }
 
@@ -496,7 +545,7 @@ export default function JobsPage() {
     try {
       const XLSX = await import("xlsx");
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
+      const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
       if (!rows.length) { setImportError("The spreadsheet is empty."); return; }
@@ -605,7 +654,17 @@ export default function JobsPage() {
         <div className="flex flex-wrap items-center gap-2 p-3">
           <div className="relative min-w-[160px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input className="pl-8" placeholder="Search title, company, notes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-8 pr-8" placeholder="Search title, company, notes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                aria-label="Clear search"
+              >
+                <X className="size-4" />
+              </button>
+            )}
           </div>
 
           <select
@@ -760,14 +819,22 @@ export default function JobsPage() {
                     />
                   </TableHead>
                 )}
-                <TableHead className="w-10">⭐</TableHead>
+                <TableHead
+                  className="w-10 cursor-pointer select-none"
+                  onClick={() => { if (sortBy === "Starred") setSortAsc((v) => !v); else { setSortBy("Starred"); setSortAsc(() => false); } }}
+                  title="Sort by starred"
+                >
+                  <span className={cn("inline-flex items-center gap-1", sortBy === "Starred" ? "text-blue-600" : "")}>
+                    ⭐{sortBy === "Starred" && (sortAsc ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+                  </span>
+                </TableHead>
                 <TableHead className="w-16">#</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead>Date Added</TableHead>
+                <SortableHead label="Title" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <SortableHead label="Company" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <SortableHead label="Status" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <SortableHead label="Priority" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <SortableHead label="Deadline" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <SortableHead label="Date Added" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>

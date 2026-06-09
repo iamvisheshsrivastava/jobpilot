@@ -2,14 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toDateStr(raw: any): string {
-  if (!raw) return new Date().toISOString()
-  if (typeof raw === 'string') return raw
-  if (raw instanceof Date) return raw.toISOString()
-  return new Date().toISOString()
-}
-
 export async function GET() {
   const session = await auth()
   if (!session?.user?.id) {

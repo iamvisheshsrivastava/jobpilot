@@ -1,12 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import {
   getUserProfile,
   getResumes,
   getJobs,
-  getCurrentUser,
-  JobWithCategory,
-  UserProfile,
 } from "./jobpilot-store";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -290,7 +288,7 @@ export function analyzeGaps(
     ? (ROLE_PROFILES.find((r) => r.role === targetRole)?.required || [])
     : [];
 
-  const allRequired = [...new Set([...requiredTechs, ...domainTechs])];
+  const allRequired = Array.from(new Set(requiredTechs.concat(domainTechs)));
   const portfolioTechs = new Set(portfolio.technologies.map((t) => t.name));
   const portfolioDomains = new Set(portfolio.domains.map((d) => d.domain));
 

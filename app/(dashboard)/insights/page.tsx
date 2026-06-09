@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   BarChart3, BookOpen, Brain, Briefcase, Code2, Database, FileText,
   Lightbulb, Server, Sparkles, Target, TrendingUp, Users, Zap,
 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentUser, getUserProfile, getResumes } from "@/lib/jobpilot-store";
+import { getUserProfile, getResumes } from "@/lib/jobpilot-store";
 import {
   generatePortfolioIntelligence,
   PortfolioIntelligence,
@@ -39,16 +39,17 @@ const matchColors: Record<string, string> = {
 };
 
 export default function InsightsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState(getCurrentUser());
+  const { data: session, status } = useSession();
   const [intel, setIntel] = useState<PortfolioIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("overview");
 
   useEffect(() => {
-    if (!user) { router.replace("/login"); return; }
-    const profile = getUserProfile(user.id);
-    const resumes = getResumes(user.id);
+    if (status === "loading") return;
+    const userId = (session?.user as { id?: string })?.id;
+    if (!userId) { setLoading(false); return; }
+    const profile = getUserProfile(userId);
+    const resumes = getResumes(userId);
     // Only run if user has data
     if (!profile.skills?.length && !profile.cvText && !resumes.length && !profile.experience?.length) {
       setIntel(null);
@@ -57,12 +58,12 @@ export default function InsightsPage() {
     }
     // Small delay to simulate analysis
     const timer = setTimeout(() => {
-      const result = generatePortfolioIntelligence(user.id);
+      const result = generatePortfolioIntelligence(userId);
       setIntel(result);
       setLoading(false);
     }, 600);
     return () => clearTimeout(timer);
-  }, [user]);
+  }, [session, status]);
 
   // ── Section highlights ──
   const topTechs = useMemo(() => intel?.summary.technologies.filter((t) => t.level === "strong").slice(0, 12) || [], [intel]);

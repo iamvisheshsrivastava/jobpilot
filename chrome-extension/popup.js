@@ -1,7 +1,33 @@
-// JobPilot Extension v2.0.0 — popup.js
+// JobPilot Extension v2.1.0 — popup.js
 // Communicates with background.js for all API calls
 
 const API_BASE = 'https://jobpilot-lime.vercel.app'
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+const THEMES = ['blue', 'purple', 'green', 'orange', 'pink', 'cyan']
+
+async function loadTheme() {
+  const { theme } = await chrome.storage.local.get('theme')
+  applyTheme(theme || 'blue')
+}
+
+function applyTheme(theme) {
+  if (!THEMES.includes(theme)) theme = 'blue'
+  document.body.dataset.theme = theme
+  document.querySelectorAll('.theme-dot').forEach((dot) => {
+    dot.classList.toggle('active', dot.dataset.theme === theme)
+  })
+  chrome.storage.local.set({ theme })
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadTheme()
+  document.getElementById('themeSwitcher')?.addEventListener('click', (e) => {
+    const dot = e.target.closest('.theme-dot')
+    if (dot) applyTheme(dot.dataset.theme)
+  })
+})
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const loginView       = document.getElementById('loginView')
@@ -119,6 +145,11 @@ function showMain(email) {
   if (email) userEmailEl.textContent = email
   loadCategories()
 }
+
+// Allow Enter key to submit login
+;[loginEmail, loginPassword].forEach((el) => {
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click() })
+})
 
 loginBtn.addEventListener('click', async () => {
   const email = loginEmail.value.trim()
@@ -326,14 +357,14 @@ saveBtn.addEventListener('click', () => {
 
   // Use the captured job description or fall back to page text extraction
   let pageNote = capturedPageText || jobDescription.value
-  const doSave = (note) => {
+  const doSave = (note, tabUrl) => {
     chrome.runtime.sendMessage(
       {
         type: 'SAVE_JOB',
         payload: {
           title,
           company: jobCompany.value.trim() || null,
-          link: null, // will be filled below from tab URL
+          link: tabUrl || null,
           categoryId,
           status: statusSelect.value,
           priority: prioritySelect.value,
@@ -363,17 +394,18 @@ saveBtn.addEventListener('click', () => {
   // Get current tab URL for the link field
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs?.[0]
+    const tabUrl = tab?.url || null
     if (!pageNote && tab) {
       // Fallback: extract full page text for note
       chrome.scripting.executeScript(
         { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [50000] },
         (results) => {
           const frames = (results || []).map((r) => r?.result).filter((r) => r?.text).sort((a, b) => (b.score || 0) - (a.score || 0))
-          doSave(frames[0]?.text || '')
+          doSave(frames[0]?.text || '', tabUrl)
         },
       )
     } else {
-      doSave(pageNote)
+      doSave(pageNote, tabUrl)
     }
   })
 })

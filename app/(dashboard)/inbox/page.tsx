@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Bell, Calendar, CheckCheck, ExternalLink, FileText,
   Inbox as InboxIcon, Mail, MailOpen, MessageSquare, Phone,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import {
-  getCurrentUser,
   getJobs,
   getRecruiters,
   getEmailEvents,
@@ -29,9 +28,6 @@ import {
   Recruiter,
   EmailEvent,
   Reminder,
-  JobWithCategory,
-  getCategories,
-  addJob,
 } from "@/lib/jobpilot-store";
 
 const typeColors: Record<string, string> = {
@@ -62,8 +58,8 @@ const statusFromType: Record<string, string> = {
 };
 
 export default function InboxPage() {
-  const router = useRouter();
-  const [user, setUser] = useState(getCurrentUser());
+  const { data: session, status } = useSession();
+  const userId = (session?.user as { id?: string })?.id ?? null;
   const [events, setEvents] = useState<EmailEvent[]>([]);
   const [recruiters, setRecruiters] = useState<Recruiter[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -73,15 +69,16 @@ export default function InboxPage() {
   const [importText, setImportText] = useState("");
 
   useEffect(() => {
-    if (!user) { router.replace("/login"); return; }
-    refresh();
-  }, [user]);
+    if (status === "loading") return;
+    if (userId) refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, status]);
 
   function refresh() {
-    if (!user) return;
-    setEvents(getEmailEvents(user.id));
-    setRecruiters(getRecruiters(user.id));
-    setReminders(getReminders(user.id));
+    if (!userId) return;
+    setEvents(getEmailEvents(userId));
+    setRecruiters(getRecruiters(userId));
+    setReminders(getReminders(userId));
     setGmailConfig(getGmailConfig());
   }
 
@@ -113,7 +110,7 @@ export default function InboxPage() {
 
   // ── Import Email ──
   function handleImport() {
-    if (!user || !importText.trim()) return;
+    if (!userId || !importText.trim()) return;
     const classified = autoClassifyEmail(importText);
     // Check for recruiter extraction
     const companyMatch = importText.match(/(?:at|from|with)\s+([A-Z][A-Za-z0-9.\s&]+?)(?:\s|,|\.|$)/);
@@ -134,7 +131,7 @@ export default function InboxPage() {
       if (existing) {
         recruiterId = existing.id;
       } else {
-        const newRecruiter = createRecruiter(user.id, {
+        const newRecruiter = createRecruiter(userId, {
           name: recruiterName || recruiterEmail || "Unknown",
           company: company,
           email: recruiterEmail,
@@ -145,7 +142,7 @@ export default function InboxPage() {
     }
 
     // Create event
-    const event = createEmailEvent(user.id, {
+    const event = createEmailEvent(userId, {
       type: classified.type,
       subject,
       sender: recruiterEmail || "imported@email.com",
@@ -155,7 +152,7 @@ export default function InboxPage() {
     });
 
     // Auto-match to existing jobs
-    const jobs = getJobs(user.id);
+    const jobs = getJobs(userId);
     const matched = jobs.find((j) =>
       j.company?.toLowerCase().includes(company.toLowerCase()) ||
       company.toLowerCase().includes(j.company?.toLowerCase() || "")
@@ -164,8 +161,8 @@ export default function InboxPage() {
       // Auto-update status
       const newStatus = statusFromType[classified.type];
       if (newStatus) {
-        updateJob(user.id, matched.id, { status: newStatus as any });
-        addJobActivity(user.id, matched.id, {
+        updateJob(userId, matched.id, { status: newStatus as any });
+        addJobActivity(userId, matched.id, {
           type: "email",
           description: `${typeLabels[classified.type] || classified.type} detected: ${subject}`,
         });
@@ -181,8 +178,8 @@ export default function InboxPage() {
 
   // ── Connect Gmail emulation ──
   function handleConnectGmail() {
-    if (!user) return;
-    connectGmail(user.email);
+    if (!userId) return;
+    connectGmail(session?.user?.email ?? "");
     refresh();
   }
 
@@ -322,15 +319,15 @@ export default function InboxPage() {
                       <div className="flex shrink-0 gap-1">
                         <button className="rounded-md border border-slate-200 px-2 py-1 text-[10px] text-slate-500 hover:bg-slate-50"
                           onClick={() => {
-                            const jobs = getJobs(user!.id);
+                            const jobs = getJobs(userId!);
                             if (jobs.length > 0) {
                               const match = jobs.find((j) =>
                                 j.company?.toLowerCase().includes((event.company || "").toLowerCase())
                               );
                               if (match) {
                                 const ns = statusFromType[event.type];
-                                if (ns) updateJob(user!.id, match.id, { status: ns as any });
-                                addJobActivity(user!.id, match.id, { type: "email", description: `${typeLabels[event.type]} matched: ${event.subject}` });
+                                if (ns) updateJob(userId!, match.id, { status: ns as any });
+                                addJobActivity(userId!, match.id, { type: "email", description: `${typeLabels[event.type]} matched: ${event.subject}` });
                                 event.matchedJobId = match.id;
                                 refresh();
                               }
@@ -398,10 +395,10 @@ export default function InboxPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700"
               onClick={() => {
                 const title = prompt("Reminder title:");
-                if (!title || !user) return;
+                if (!title || !userId) return;
                 const date = prompt("Due date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
                 if (!date) return;
-                createReminder(user.id, { title, dueDate: date });
+                createReminder(userId, { title, dueDate: date });
                 refresh();
               }}
             >
@@ -415,7 +412,7 @@ export default function InboxPage() {
               <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-2">Overdue</h4>
               <div className="space-y-1">
                 {upcomingReminders.overdue.map((r) => (
-                  <ReminderRow key={r.id} reminder={r} user={user!} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
+                  <ReminderRow key={r.id} reminder={r} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
                 ))}
               </div>
             </div>
@@ -427,7 +424,7 @@ export default function InboxPage() {
               <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">Today</h4>
               <div className="space-y-1">
                 {upcomingReminders.today.map((r) => (
-                  <ReminderRow key={r.id} reminder={r} user={user!} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
+                  <ReminderRow key={r.id} reminder={r} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
                 ))}
               </div>
             </div>
@@ -439,7 +436,7 @@ export default function InboxPage() {
               <h4 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">This Week</h4>
               <div className="space-y-1">
                 {upcomingReminders.thisWeek.map((r) => (
-                  <ReminderRow key={r.id} reminder={r} user={user!} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
+                  <ReminderRow key={r.id} reminder={r} onToggle={() => { toggleReminder(r.id); refresh(); }} onDelete={() => { deleteReminder(r.id); refresh(); }} />
                 ))}
               </div>
             </div>
@@ -502,7 +499,7 @@ export default function InboxPage() {
                           if (!title) return;
                           const date = prompt("Due date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
                           if (!date) return;
-                          createReminder(user!.id, { title, dueDate: date, recruiterId: r.id });
+                          createReminder(userId!, { title, dueDate: date, recruiterId: r.id });
                           refresh();
                         }}
                       >
@@ -525,8 +522,8 @@ export default function InboxPage() {
   );
 }
 
-function ReminderRow({ reminder, user, onToggle, onDelete }: {
-  reminder: Reminder; user: import("@/lib/jobpilot-store").User;
+function ReminderRow({ reminder, onToggle, onDelete }: {
+  reminder: Reminder;
   onToggle: () => void; onDelete: () => void;
 }) {
   return (

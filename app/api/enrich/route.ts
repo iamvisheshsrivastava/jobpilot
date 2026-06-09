@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 
 // Enrich a job posting with structured data using an LLM
+// Supports both NextAuth session cookies AND Bearer token (used by Chrome extension)
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await getUser(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { pageText } = await req.json()
   if (!pageText?.trim()) {
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
 
   // Fetch user's API keys
   const apiKeys = await prisma.apiKey.findMany({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
   })
 
   const groqRecord = apiKeys.find((k) => k.provider === 'GROQ')

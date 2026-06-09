@@ -287,8 +287,10 @@ function tokenize(text: string): Set<string> {
 }
 function jaccard(a: Set<string>, b: Set<string>): number {
   if (!a.size && !b.size) return 1;
-  const inter = new Set([...a].filter((x) => b.has(x)));
-  return inter.size / new Set([...a, ...b]).size;
+  const aArr = Array.from(a);
+  const inter = aArr.filter((x) => b.has(x));
+  const union = new Set(aArr.concat(Array.from(b)));
+  return inter.length / union.size;
 }
 export function findSimilarJobs(userId: string, title: string, link?: string, ignoreJobId?: string): JobWithCategory[] {
   const jobs = getJobs(userId);
@@ -526,7 +528,7 @@ async function getAesKey() {
 async function hashPassword(password: string, saltHex?: string): Promise<string> {
   const salt = saltHex ? hexToBytes(saltHex) : crypto.getRandomValues(new Uint8Array(16));
   const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as any, iterations: 100_000, hash: "SHA-256" }, km, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as BufferSource, iterations: 100_000, hash: "SHA-256" }, km, 256);
   return `pbkdf2:${bytesToHex(salt)}:${bytesToHex(new Uint8Array(bits))}`;
 }
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
@@ -535,7 +537,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   return (await hashPassword(password, p[1])) === stored;
 }
 function bytesToHex(bytes: Uint8Array): string {
-  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 function hexToBytes(hex: string): Uint8Array {
   return new Uint8Array((hex.match(/.{1,2}/g) || []).map((b) => parseInt(b, 16)));
