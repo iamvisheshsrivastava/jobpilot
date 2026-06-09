@@ -14,6 +14,8 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  BarChart3,
+  Briefcase,
   Columns3,
   Download,
   FileText,
@@ -104,23 +106,23 @@ function emptyForm(categoryId = ""): FormState {
 
 function statusClass(status: JobStatus) {
   return ({
-    "In Progress": "bg-orange-100 text-orange-700",
-    Applied: "bg-blue-100 text-blue-700",
-    Interview: "bg-violet-100 text-violet-700",
-    Offer: "bg-emerald-100 text-emerald-700",
-    "Look Again": "bg-amber-100 text-amber-700",
-    Rejected: "bg-red-100 text-red-700",
-    "Not Suitable": "bg-slate-100 text-slate-700",
-    "Expired/Filled": "bg-zinc-200 text-zinc-700",
+    "In Progress": "bg-orange-100 text-orange-700 border border-orange-200",
+    Applied:       "bg-blue-100 text-blue-700 border border-blue-200",
+    Interview:     "bg-violet-100 text-violet-700 border border-violet-200",
+    Offer:         "bg-emerald-100 text-emerald-700 border border-emerald-200",
+    "Look Again":  "bg-amber-100 text-amber-700 border border-amber-200",
+    Rejected:      "bg-red-100 text-red-600 border border-red-200",
+    "Not Suitable":"bg-slate-100 text-slate-600 border border-slate-200",
+    "Expired/Filled": "bg-zinc-100 text-zinc-600 border border-zinc-200",
   } as Record<JobStatus, string>)[status];
 }
 
 function priorityClass(priority: JobPriority) {
   return ({
-    "Super High": "bg-red-100 text-red-700",
-    High: "bg-orange-100 text-orange-700",
-    Medium: "bg-blue-100 text-blue-700",
-    Low: "bg-emerald-100 text-emerald-700",
+    "Super High": "bg-red-50 text-red-700 border border-red-200 font-semibold",
+    High:         "bg-orange-50 text-orange-700 border border-orange-200",
+    Medium:       "bg-blue-50 text-blue-700 border border-blue-200",
+    Low:          "bg-emerald-50 text-emerald-700 border border-emerald-200",
   } as Record<JobPriority, string>)[priority];
 }
 
@@ -379,6 +381,17 @@ export default function JobsPage() {
 
   useEffect(() => { setPage(1); }, [activeCategoryId, search, statusFilter, priorityFilter, sortBy, sortAsc, showDuplicatesOnly]);
 
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const categoryJobs = useMemo(() => jobs.filter((j) => j.categoryId === activeCategoryId), [jobs, activeCategoryId]);
+  const statTotal = categoryJobs.length;
+  const statInterviews = categoryJobs.filter((j) => j.status === "Interview").length;
+  const statOffers = categoryJobs.filter((j) => j.status === "Offer").length;
+  const statSuccessRate = statTotal > 0 ? Math.round((statOffers / statTotal) * 100) : 0;
+  const statThisMonth = categoryJobs.filter((j) => {
+    const d = new Date(j.dateAdded); const n = new Date();
+    return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+  }).length;
+
   // ── Category handlers ──────────────────────────────────────────────────────
   function openAddCat() { setAddCatName(""); setAddCatError(""); setAddCatOpen(true); }
 
@@ -603,72 +616,133 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 pb-24">
       {/* hidden file input for import */}
-      <input
-        ref={importRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="hidden"
-        onChange={handleImportFile}
-      />
+      <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
 
-      {/* ── Categories ──────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 px-3 py-2.5">
+      {/* ── Page header ─────────────────────────────────────────────────── */}
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+          Jobs <span className="text-purple-500 text-xl">✦</span>
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">Track, manage and organize all your job applications in one place.</p>
+      </div>
+
+      {/* ── Stats cards ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {/* Total Jobs */}
+        <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100/80">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Total Jobs</p>
+              <p className="mt-1.5 text-3xl font-bold text-slate-900">{statTotal}</p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg,#EDE9FE,#DDD6FE)" }}>
+              <Briefcase className="size-5 text-violet-600" />
+            </div>
+          </div>
+          {statThisMonth > 0 && <p className="mt-2 text-xs font-medium text-emerald-600">+{statThisMonth} this month</p>}
+        </div>
+        {/* Interviews */}
+        <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100/80">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Interviews</p>
+              <p className="mt-1.5 text-3xl font-bold text-slate-900">{statInterviews}</p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg,#DBEAFE,#BFDBFE)" }}>
+              <BarChart3 className="size-5 text-blue-600" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">{statTotal > 0 ? Math.round(statInterviews / statTotal * 100) : 0}% of total</p>
+        </div>
+        {/* Offers */}
+        <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100/80">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Offers</p>
+              <p className="mt-1.5 text-3xl font-bold text-slate-900">{statOffers}</p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg,#D1FAE5,#A7F3D0)" }}>
+              <Briefcase className="size-5 text-emerald-600" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">{statTotal > 0 ? Math.round(statOffers / statTotal * 100) : 0}% of total</p>
+        </div>
+        {/* Success Rate */}
+        <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100/80">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Success Rate</p>
+              <p className="mt-1.5 text-3xl font-bold text-slate-900">{statSuccessRate}%</p>
+            </div>
+            <div className="flex size-10 items-center justify-center rounded-xl" style={{ background: "linear-gradient(135deg,#FEF3C7,#FDE68A)" }}>
+              <Star className="size-5 text-amber-500" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">Keep going! 🙌</p>
+        </div>
+      </div>
+
+      {/* ── Categories + Filters ─────────────────────────────────────────── */}
+      <section className="rounded-2xl bg-white shadow-sm border border-slate-100/80">
+        {/* Category tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-100 px-4 py-3">
           {categories.length === 0 ? (
             <p className="px-2 text-sm text-slate-400">No categories yet — add one to start.</p>
           ) : (
             categories.map((cat) => (
-              <div
-                key={cat.id}
-                className={cn(
-                  "flex shrink-0 items-center gap-0.5 rounded-lg border px-1",
-                  activeCategoryId === cat.id ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50",
-                )}
-              >
+              <div key={cat.id} className="flex shrink-0 items-center gap-0.5 rounded-full">
                 <button
                   type="button"
                   className={cn(
-                    "h-8 px-2.5 text-sm font-medium",
-                    activeCategoryId === cat.id ? "text-blue-700" : "text-slate-600",
+                    "flex h-8 items-center gap-2 rounded-full px-4 text-sm font-medium transition-all",
+                    activeCategoryId === cat.id
+                      ? "text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200",
                   )}
+                  style={activeCategoryId === cat.id ? { background: "linear-gradient(135deg,#7C3AED,#6D28D9)" } : undefined}
                   onClick={() => setActiveCategoryId(cat.id)}
                 >
+                  <span className="size-2 rounded-full bg-current opacity-70" />
                   {cat.name}
                 </button>
-                {!isDemo && (
+                {!isDemo && activeCategoryId === cat.id && (
                   <CategoryMenu category={cat} onRename={openRenameCat} onDelete={openDeleteCat} />
                 )}
               </div>
             ))
           )}
           {!isDemo && (
-            <Button variant="outline" className="ml-auto shrink-0 gap-1.5 text-sm" onClick={openAddCat}>
-              <Plus className="size-4" /> Add Category
-            </Button>
+            <button
+              type="button"
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
+              onClick={openAddCat}
+            >
+              <Plus className="size-3.5" /> Add Category
+            </button>
           )}
         </div>
 
         {/* ── Filter bar ──────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2 p-3">
+        <div className="flex flex-wrap items-center gap-2 p-4">
           <div className="relative min-w-[160px] flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input className="pl-8 pr-8" placeholder="Search title, company, notes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              className="rounded-xl border-slate-200 pl-9 pr-8 bg-slate-50 focus:bg-white"
+              placeholder="Search title, company, notes…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                aria-label="Clear search"
-              >
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
                 <X className="size-4" />
               </button>
             )}
           </div>
 
           <select
-            className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:bg-white"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           >
@@ -676,7 +750,7 @@ export default function JobsPage() {
           </select>
 
           <select
-            className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:bg-white"
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value as typeof priorityFilter)}
           >
@@ -685,7 +759,7 @@ export default function JobsPage() {
 
           <div className="flex items-center gap-1">
             <select
-              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+              className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-violet-400 focus:bg-white"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
             >
@@ -694,7 +768,7 @@ export default function JobsPage() {
             <button
               type="button"
               title={sortAsc ? "Ascending" : "Descending"}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white"
               onClick={() => setSortAsc((v) => !v)}
             >
               <SortIcon className="size-4" />
@@ -703,13 +777,10 @@ export default function JobsPage() {
 
           <button
             type="button"
-            title="Show duplicates only"
             onClick={() => setShowDuplicatesOnly((v) => !v)}
             className={cn(
-              "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors",
-              showDuplicatesOnly
-                ? "border-amber-400 bg-amber-50 text-amber-700"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+              "flex h-9 items-center gap-1.5 rounded-xl border px-3 text-sm transition-colors",
+              showDuplicatesOnly ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-white",
             )}
           >
             <ArrowUpDown className="size-4" /> Duplicates
@@ -720,10 +791,8 @@ export default function JobsPage() {
               type="button"
               onClick={() => { setSelectionMode((v) => !v); setSelectedIds(new Set()); }}
               className={cn(
-                "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors",
-                selectionMode
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                "flex h-9 items-center gap-1.5 rounded-xl border px-3 text-sm transition-colors",
+                selectionMode ? "border-violet-400 bg-violet-50 text-violet-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-white",
               )}
             >
               Select
@@ -734,42 +803,46 @@ export default function JobsPage() {
             <button
               type="button"
               onClick={() => setBulkDeleteOpen(true)}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 text-sm text-red-600 hover:bg-red-100"
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-red-300 bg-red-50 px-3 text-sm text-red-600 hover:bg-red-100"
             >
               <Trash2 className="size-4" /> Delete {selectedIds.size}
             </button>
           )}
 
           <div className="ml-auto flex items-center gap-2">
-            {!isDemo ? (
-              <Button className="gap-1.5 bg-blue-500 text-white hover:bg-blue-600" onClick={openAddJob}>
-                <Plus className="size-4" /> Add Job
-              </Button>
-            ) : (
-              <span className="flex h-8 items-center rounded-lg border border-dashed border-slate-300 px-3 text-xs text-slate-400">Read-only demo</span>
-            )}
             {!isDemo && (
-              <Button variant="outline" className="gap-1.5" title="Import from Excel" onClick={() => importRef.current?.click()}>
+              <button
+                type="button"
+                title="Import from Excel"
+                onClick={() => importRef.current?.click()}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 hover:bg-white transition-colors"
+              >
                 <Upload className="size-4" /> Import
-              </Button>
+              </button>
             )}
-            <Button variant="outline" className="gap-1.5" onClick={exportExcel}>
+            <button
+              type="button"
+              onClick={exportExcel}
+              className="flex h-9 items-center gap-1.5 rounded-xl px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              style={{ background: "linear-gradient(135deg,#7C3AED,#6D28D9)" }}
+            >
               <Download className="size-4" /> Export
-            </Button>
+            </button>
           </div>
         </div>
       </section>
 
       {/* ── View switcher ──────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"
             onClick={() => setViewMode("list")}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+              "flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all",
+              viewMode === "list" ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700",
             )}
+            style={viewMode === "list" ? { background: "linear-gradient(135deg,#7C3AED,#6D28D9)" } : undefined}
           >
             <List className="size-4" /> List
           </button>
@@ -777,9 +850,10 @@ export default function JobsPage() {
             type="button"
             onClick={() => setViewMode("kanban")}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              viewMode === "kanban" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+              "flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-all",
+              viewMode === "kanban" ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700",
             )}
+            style={viewMode === "kanban" ? { background: "linear-gradient(135deg,#7C3AED,#6D28D9)" } : undefined}
           >
             <Columns3 className="size-4" /> Kanban
           </button>
@@ -804,7 +878,7 @@ export default function JobsPage() {
 
       {/* ── Jobs table ───────────────────────────────────────────────────── */}
       {viewMode === "list" && (
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-100/80 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -966,18 +1040,33 @@ export default function JobsPage() {
           </Table>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-slate-200 px-4 py-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>
             {visibleJobs.length} job{visibleJobs.length === 1 ? "" : "s"} found
             {selectionMode && selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((v) => Math.max(1, v - 1))}>Previous</Button>
+            <Button variant="outline" size="sm" className="rounded-lg" disabled={page <= 1} onClick={() => setPage((v) => Math.max(1, v - 1))}>Previous</Button>
             <span>Page {page} of {totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((v) => Math.min(totalPages, v + 1))}>Next</Button>
+            <Button variant="outline" size="sm" className="rounded-lg" disabled={page >= totalPages} onClick={() => setPage((v) => Math.min(totalPages, v + 1))}>Next</Button>
           </div>
         </div>
       </section>
+      )}
+
+      {/* ── Floating Add New Job button ──────────────────────────────────── */}
+      {!isDemo && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={openAddJob}
+            className="flex items-center gap-2 rounded-2xl px-7 py-3 text-sm font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-[1.02]"
+            style={{ background: "linear-gradient(135deg,#7C3AED,#6D28D9)" }}
+          >
+            <Plus className="size-4" />
+            Add New Job
+          </button>
+        </div>
       )}
 
       {/* ── Add Category dialog ──────────────────────────────────────────── */}
