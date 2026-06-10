@@ -3,20 +3,24 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 
-// Provider → base URL map (for OpenAI-compatible APIs)
+// Provider → base URL map (uppercase keys, resolved case-insensitively)
 const OPENAI_COMPAT_URLS: Record<string, string> = {
-  OpenAI: 'https://api.openai.com/v1',
-  Groq: 'https://api.groq.com/openai/v1',
-  OpenRouter: 'https://openrouter.ai/api/v1',
+  OPENAI: 'https://api.openai.com/v1',
+  GROQ: 'https://api.groq.com/openai/v1',
+  OPENROUTER: 'https://openrouter.ai/api/v1',
+}
+
+function getProviderUrl(provider: string): string {
+  return OPENAI_COMPAT_URLS[provider.toUpperCase()] ?? OPENAI_COMPAT_URLS.OPENAI
 }
 
 // Model defaults per provider
 const MODEL_DEFAULTS: Record<string, string> = {
   GROQ: 'llama-3.3-70b-versatile',
-  OPENROUTER: 'meta-llama/llama-3.1-8b-instruct:free',
+  OPENROUTER: 'google/gemini-2.0-flash-exp:free',
   OPENAI: 'gpt-4o-mini',
   ANTHROPIC: 'claude-3-5-haiku-20241022',
-  GEMINI: 'gemini-1.5-flash',
+  GEMINI: 'gemini-2.0-flash',
 }
 
 export async function POST(req: Request) {
@@ -74,10 +78,12 @@ export async function POST(req: Request) {
 
   const provider = keyRecord.provider
   const DEPRECATED_MODELS: Record<string, string> = {
-    'mistralai/mistral-7b-instruct': 'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free': 'meta-llama/llama-3.1-8b-instruct:free',
-    'openrouter:free': 'meta-llama/llama-3.1-8b-instruct:free',
-    'custom': 'meta-llama/llama-3.1-8b-instruct:free',
+    'mistralai/mistral-7b-instruct': 'google/gemini-2.0-flash-exp:free',
+    'mistralai/mistral-7b-instruct:free': 'google/gemini-2.0-flash-exp:free',
+    'meta-llama/llama-3.1-8b-instruct:free': 'google/gemini-2.0-flash-exp:free',
+    'meta-llama/llama-3.1-8b-instruct': 'google/gemini-2.0-flash-exp:free',
+    'openrouter:free': 'google/gemini-2.0-flash-exp:free',
+    'custom': 'google/gemini-2.0-flash-exp:free',
   }
   const savedModel = keyRecord.modelName ?? MODEL_DEFAULTS[provider.toUpperCase()] ?? 'gpt-4o-mini'
   const model = DEPRECATED_MODELS[savedModel] ?? savedModel
@@ -128,13 +134,13 @@ Include programming languages, frameworks, tools, platforms, and technologies. E
       const data = await res.json()
       text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     } else {
-      // OpenAI-compatible
-      const baseUrl = OPENAI_COMPAT_URLS[provider] ?? OPENAI_COMPAT_URLS.OpenAI
+      // OpenAI-compatible (case-insensitive provider lookup)
+      const baseUrl = getProviderUrl(provider)
       const headers: Record<string, string> = {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       }
-      if (provider === 'OpenRouter' || provider === 'OPENROUTER') {
+      if (provider.toUpperCase() === 'OPENROUTER') {
         headers['HTTP-Referer'] = 'https://jobpilot.app'
         headers['X-Title'] = 'JobPilot'
       }

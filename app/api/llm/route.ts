@@ -44,18 +44,20 @@ export async function POST(req: Request) {
   const providerKey = provider.toUpperCase()
   const modelDefaults: Record<string, string> = {
     GROQ: 'llama-3.3-70b-versatile',
-    OPENROUTER: 'meta-llama/llama-3.1-8b-instruct:free',
+    OPENROUTER: 'google/gemini-2.0-flash-exp:free',
     OPENAI: 'gpt-4o-mini',
     ANTHROPIC: 'claude-3-5-haiku-20241022',
-    GEMINI: 'gemini-1.5-flash',
+    GEMINI: 'gemini-2.0-flash',
   }
   // Known deprecated/removed/invalid models → override with a working default
   const DEPRECATED_MODELS: Record<string, string> = {
-    'mistralai/mistral-7b-instruct': 'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free': 'meta-llama/llama-3.1-8b-instruct:free',
-    'openai/gpt-3.5-turbo': 'meta-llama/llama-3.1-8b-instruct:free',
-    'openrouter:free': 'meta-llama/llama-3.1-8b-instruct:free',
-    'custom': 'meta-llama/llama-3.1-8b-instruct:free',
+    'mistralai/mistral-7b-instruct': 'google/gemini-2.0-flash-exp:free',
+    'mistralai/mistral-7b-instruct:free': 'google/gemini-2.0-flash-exp:free',
+    'meta-llama/llama-3.1-8b-instruct:free': 'google/gemini-2.0-flash-exp:free',
+    'meta-llama/llama-3.1-8b-instruct': 'google/gemini-2.0-flash-exp:free',
+    'openai/gpt-3.5-turbo': 'google/gemini-2.0-flash-exp:free',
+    'openrouter:free': 'google/gemini-2.0-flash-exp:free',
+    'custom': 'google/gemini-2.0-flash-exp:free',
   }
   const savedModel = keyRecord.modelName ?? modelDefaults[providerKey] ?? 'gpt-4o-mini'
   const model = DEPRECATED_MODELS[savedModel] ?? savedModel
