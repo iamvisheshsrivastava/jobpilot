@@ -154,7 +154,7 @@ async function syncUserGmail(userId: string): Promise<number> {
   };
   const MODEL_DEFAULTS: Record<string, string> = {
     GROQ: "llama-3.3-70b-versatile",
-    OPENROUTER: "meta-llama/llama-3.1-8b-instruct:free",
+    OPENROUTER: "meta-llama/llama-3.3-70b-instruct:free",
     OPENAI: "gpt-4o-mini",
   };
 

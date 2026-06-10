@@ -36,10 +36,11 @@ export const PROVIDER_MODELS: Record<LlmProvider, string[]> = {
   ],
   OpenRouter: [
     "meta-llama/llama-3.3-70b-instruct:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "qwen/qwen3-coder:free",
     "deepseek/deepseek-chat:free",
-    "google/gemma-2-9b-it:free",
-    "custom",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
   ],
 };
 
