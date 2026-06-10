@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// Build: 2026-06-10
 const nextConfig = {
   eslint: {
     // ESLint runs separately in CI; don't block the Vercel build
