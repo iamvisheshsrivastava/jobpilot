@@ -88,7 +88,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto space-y-0.5 px-3 py-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-0.5 px-3 py-2">
           {navItems.map((item) => {
             const active = pathname === item.href;
             return (

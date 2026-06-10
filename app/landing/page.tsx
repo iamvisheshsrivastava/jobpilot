@@ -1,88 +1,122 @@
 import Link from "next/link";
-import { BarChart3, Bot, Briefcase, Folders, Lock, MousePointerClick, PenLine } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  BarChart3,
+  Bot,
+  Folders,
+  Lock,
+  MousePointerClick,
+  PenLine,
+  Rocket,
+} from "lucide-react";
 
 const features = [
-  { icon: MousePointerClick, title: "One-Click Capture", description: "Save any job posting instantly from your browser" },
-  { icon: Bot, title: "AI Suitability Analysis", description: "Know your fit before you apply" },
-  { icon: BarChart3, title: "Smart Dashboard", description: "Track status, deadlines, and priorities at a glance" },
-  { icon: Folders, title: "Multi-Category", description: "Organize by country, role type, or company" },
-  { icon: Lock, title: "Secure & Private", description: "Your data stays yours, protected by login" },
-  { icon: PenLine, title: "Resume Optimizer", description: "Tailor your CV to each job with AI assistance", comingSoon: true },
+  {
+    icon: MousePointerClick,
+    title: "One-Click Capture",
+    description: "Save any job posting instantly from your browser",
+    color: "from-violet-500 to-purple-600",
+  },
+  {
+    icon: Bot,
+    title: "AI Suitability Analysis",
+    description: "Know your fit before you apply",
+    color: "from-blue-500 to-cyan-500",
+  },
+  {
+    icon: BarChart3,
+    title: "Smart Dashboard",
+    description: "Track status, deadlines, and priorities at a glance",
+    color: "from-emerald-500 to-teal-500",
+  },
+  {
+    icon: Folders,
+    title: "Multi-Category",
+    description: "Organize by country, role type, or company",
+    color: "from-amber-500 to-orange-500",
+  },
+  {
+    icon: Lock,
+    title: "Secure & Private",
+    description: "Your data stays yours, protected by login",
+    color: "from-rose-500 to-pink-500",
+  },
+  {
+    icon: PenLine,
+    title: "Resume Optimizer",
+    description: "Tailor your CV to each job with AI assistance",
+    color: "from-violet-500 to-indigo-500",
+    comingSoon: true,
+  },
+];
+
+const stats = [
+  { value: "10k+", label: "Jobs Tracked" },
+  { value: "2k+", label: "Active Users" },
+  { value: "94%", label: "Success Rate" },
 ];
 
 export default function LandingPage() {
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-6 py-3 backdrop-blur">
-        <Link href="/" className="flex items-center gap-2 font-bold text-slate-900">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-blue-500 text-white">
-            <Briefcase className="size-4" />
-          </span>
-          <span className="text-lg">JobPilot</span>
+    <main className="flex min-h-screen flex-col overflow-x-hidden bg-[#F4F5FA]">
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <header
+        className="flex shrink-0 items-center justify-between px-6 py-4"
+        style={{ background: "linear-gradient(160deg,#2D1B69 0%,#1A0F3E 100%)" }}
+      >
+        <Link href="/" className="flex items-center gap-3">
+          <div
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl shadow-lg"
+            style={{ background: "linear-gradient(135deg,#7C3AED,#3B82F6)" }}
+          >
+            <Rocket className="size-4 text-white" />
+          </div>
+          <div>
+            <p className="text-[15px] font-bold leading-tight tracking-tight text-white">JobPilot</p>
+            <p className="text-[10px] text-purple-300/80">Navigate your dream career ✨</p>
+          </div>
         </Link>
-        <div className="flex items-center gap-2">
+
+        <nav className="flex items-center gap-2">
           <Link
             href="/login"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            className="rounded-xl px-4 py-2 text-sm font-medium text-purple-200/80 transition-colors hover:bg-white/10 hover:text-white"
           >
             Log In
           </Link>
           <Link
             href="/signup"
-            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors"
+            className="rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
+            style={{ background: "linear-gradient(135deg,#7C3AED,#6D28D9)" }}
           >
-            Sign Up Free →
+            Get Started →
           </Link>
-        </div>
+        </nav>
       </header>
 
-      {/* Hero */}
-      <section className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600">
-          🚀 Free · Private · AI-Powered
-        </div>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
-          Your Job Search,{" "}
-          <span className="text-blue-500">Command Center</span>
-        </h1>
-        <p className="mt-4 max-w-2xl text-base text-slate-500 sm:text-lg">
-          Save jobs with one click, track every application, and get AI insights on your fit — all in one place. Built for serious job seekers.
-        </p>
-        <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/signup"
-            className="rounded-xl bg-blue-500 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 transition-colors"
-          >
-            Get Started — It&apos;s Free
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-xl border border-slate-300 bg-white px-8 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            Log In
-          </Link>
-        </div>
-      </section>
+      {/* ── Hero ────────────────────────────────────────────────────────── */}
+      <section className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
+        {/* Soft purple glow */}
+        <div
+          className="pointer-events-none absolute -top-24 left-1/2 h-[480px] w-[600px] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+          style={{ background: "radial-gradient(circle,#7C3AED 0%,transparent 70%)" }}
+        />
 
-      {/* Features */}
-      <section className="shrink-0 border-t border-slate-200 bg-white/60 px-6 py-5">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {features.map((feature) => (
-            <div key={feature.title} className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-3">
-              <feature.icon className="size-4 text-blue-500" />
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-xs font-semibold text-slate-800">{feature.title}</span>
-                {feature.comingSoon ? (
-                  <Badge className="bg-blue-50 text-blue-500 text-[10px] px-1.5 py-0">soon</Badge>
-                ) : null}
-              </div>
-              <p className="text-[11px] leading-4 text-slate-500">{feature.description}</p>
-            </div>
-          ))}
+        {/* Badge pill */}
+        <div
+          className="mb-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-purple-700"
+          style={{
+            background: "rgba(124,58,237,0.10)",
+            border: "1px solid rgba(124,58,237,0.25)",
+          }}
+        >
+          <span
+            className="size-1.5 rounded-full"
+            style={{ background: "linear-gradient(135deg,#A78BFA,#7C3AED)" }}
+          />
+          Free · Private · AI-Powered
         </div>
-      </section>
-    </main>
-  );
-}
+
+        {/* Headline */}
+        <h1 className="mt-1 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
+          Your Job Search,{" "}
+          <spa
