@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  BarChart3, Bot, CheckCircle, Chrome, Folders, Globe, Lock,
+  BarChart3, Bot, CheckCircle, Folders, Globe, Lock,
   MousePointerClick, PenLine, Rocket, Search, Sparkles, UserCheck,
 } from "lucide-react";
 
@@ -104,7 +104,7 @@ export default function LandingPage() {
           </Link>
         </div>
         <div className="mt-10 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          <Chrome className="size-4 shrink-0 text-amber-600" />
+          <Globe className="size-4 shrink-0 text-amber-600" />
           <span><strong>Heads up:</strong> JobPilot works through a Chrome extension. Install it first to start saving jobs.</span>
         </div>
       </section>
@@ -191,7 +191,7 @@ export default function LandingPage() {
               className="flex items-center gap-2.5 rounded-xl px-7 py-3.5 text-sm font-semibold text-white shadow-lg hover:opacity-90"
               style={{ background: B_BG }}
             >
-              <Chrome className="size-4" />
+              <Globe className="size-4" />
               Add to Chrome — Free
             </a>
             <Link href="/signup" className="rounded-xl border border-white/20 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white hover:bg-white/20">
