@@ -29,6 +29,8 @@ model User {
   apiKeys        ApiKey[]
   profile        UserProfile?
   resumeVersions ResumeVersion[]
+  gmailToken     GmailToken?
+  notifications  Notification[]
 
   @@map("users")
 }
@@ -152,4 +154,37 @@ model JobHistory {
   job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@map("job_history")
+}
+model GmailToken {
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  email        String
+  accessToken  String    @map("access_token")
+  refreshToken String    @map("refresh_token")
+  expiresAt    DateTime  @map("expires_at")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gmail_tokens")
+}
+
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  type         String    // REJECTION | INTERVIEW | OFFER | APPLICATION_CONFIRMATION | OTHER
+  title        String
+  body         String
+  read         Boolean   @default(false)
+  emailFrom    String?   @map("email_from")
+  emailSubject String?   @map("email_subject")
+  emailDate    DateTime? @map("email_date")
+  gmailMsgId   String?   @unique @map("gmail_msg_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }

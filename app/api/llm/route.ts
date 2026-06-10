@@ -3,8 +3,6 @@ import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 
-// Provider → base URL map (for OpenAI-compatible APIs)
-// Handles both DB-uppercase (GROQ, OPENROUTER, OPENAI) and display-cased (Groq, OpenRouter, OpenAI) values
 const OPENAI_COMPAT_URLS: Record<string, string> = {
   OpenAI: 'https://api.openai.com/v1',
   OPENAI: 'https://api.openai.com/v1',
@@ -23,7 +21,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'systemPrompt and userPrompt are required' }, { status: 400 })
   }
 
-  // Get the most recently updated API key
   const keys = await prisma.apiKey.findMany({
     where: { userId: user.id },
     orderBy: { updatedAt: 'desc' },
@@ -44,7 +41,6 @@ export async function POST(req: Request) {
   }
 
   const provider = keyRecord.provider
-  // Use the user's chosen model if stored, otherwise fall back to a sensible default
   const modelDefaults: Record<string, string> = {
     GROQ: 'llama-3.3-70b-versatile',
     OPENROUTER: 'meta-llama/llama-3.1-8b-instruct:free',
@@ -52,7 +48,14 @@ export async function POST(req: Request) {
     ANTHROPIC: 'claude-3-5-haiku-20241022',
     GEMINI: 'gemini-1.5-flash',
   }
-  const model = keyRecord.modelName ?? modelDefaults[provider] ?? 'gpt-4o-mini'
+  // Known deprecated/removed models → override with a working default
+  const DEPRECATED_MODELS: Record<string, string> = {
+    'mistralai/mistral-7b-instruct': 'meta-llama/llama-3.1-8b-instruct:free',
+    'mistralai/mistral-7b-instruct:free': 'meta-llama/llama-3.1-8b-instruct:free',
+    'openai/gpt-3.5-turbo': 'meta-llama/llama-3.1-8b-instruct:free',
+  }
+  const savedModel = keyRecord.modelName ?? modelDefaults[provider] ?? 'gpt-4o-mini'
+  const model = DEPRECATED_MODELS[savedModel] ?? savedModel
 
   try {
     let text = ''
@@ -90,7 +93,6 @@ export async function POST(req: Request) {
       const data = await res.json()
       text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     } else {
-      // OpenAI-compatible (OpenAI, Groq, OpenRouter, or GROQ/OPENROUTER from DB)
       const baseUrl = OPENAI_COMPAT_URLS[provider] ?? OPENAI_COMPAT_URLS.OpenAI
       const headers: Record<string, string> = {
         'Authorization': `Bearer ${apiKey}`,
@@ -100,18 +102,25 @@ export async function POST(req: Request) {
         headers['HTTP-Referer'] = 'https://jobpilot.app'
         headers['X-Title'] = 'JobPilot'
       }
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-        }),
-      })
+
+      const makeRequest = async (modelId: string) =>
+        fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: modelId,
+            max_tokens: 4096,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+          }),
+        })
+
+      let res = await makeRequest(model)
+      if (!res.ok && res.status === 404 && (provider === 'OpenRouter' || provider === 'OPENROUTER')) {
+        res = await makeRequest(modelDefaults.OPENROUTER)
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
       const data = await res.json()
       text = data.choices?.[0]?.message?.content ?? ''

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  BarChart3, Bot, Folders, Lock,
+  BarChart3, Bot, Folders, Globe, Lock,
   MousePointerClick, PenLine, Rocket,
 } from "lucide-react";
 
@@ -19,6 +19,7 @@ const stats = [
   { value: "94%", label: "Success Rate" },
 ];
 
+const EXT_URL = "https://chromewebstore.google.com/detail/jobpilot/jopnkmmamkgaalnhkjamcpldmkiloeak";
 const H_BG = "linear-gradient(160deg,#2D1B69 0%,#1A0F3E 100%)";
 const L_BG = "linear-gradient(135deg,#7C3AED,#3B82F6)";
 const B_BG = "linear-gradient(135deg,#7C3AED,#6D28D9)";
@@ -99,6 +100,39 @@ export default function LandingPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Chrome Extension Promo ──────────────────────────────────────── */}
+      <section className="shrink-0 px-6 py-14" style={{ background: H_BG }}>
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-8 text-center md:flex-row md:text-left">
+          <div className="flex size-20 shrink-0 items-center justify-center rounded-2xl shadow-2xl" style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.20)" }}>
+            <Globe className="size-10 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold text-purple-300" style={{ background: "rgba(167,139,250,0.15)" }}>
+              Chrome Extension
+            </div>
+            <h2 className="text-2xl font-extrabold text-white sm:text-3xl">
+              Save any job in one click
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-purple-200/80">
+              The JobPilot Chrome extension lets you capture any job posting directly to your dashboard — straight from LinkedIn, Indeed, or any other job site. No copy-pasting, no switching tabs.
+            </p>
+            <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row md:justify-start">
+              <a
+                href={EXT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90"
+                style={{ background: B_BG }}
+              >
+                <Globe className="size-4" />
+                Add to Chrome — Free
+              </a>
+              <span className="text-xs text-purple-300/60">Works on Chrome, Brave, Edge</span>
+            </div>
+          </div>
         </div>
       </section>
 

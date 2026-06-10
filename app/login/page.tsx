@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-8">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
           <ArrowLeft className="size-4" /> Back to home

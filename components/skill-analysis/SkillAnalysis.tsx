@@ -2,15 +2,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-  Sparkles,
-  XCircle,
-  Minus,
-  Lightbulb,
-  ChevronDown,
-  ChevronRight,
+  AlertCircle, CheckCircle2, ChevronDown, ChevronRight,
+  Lightbulb, Loader2, Minus, Sparkles, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,28 +15,16 @@ import {
   parseSkillAnalysisResult,
 } from "@/lib/skill-analysis";
 import { callLLM } from "@/lib/llm";
-import {
-  getCurrentUser,
-  getUserProfile,
-  getApiKeys,
-  User,
-  UserProfile,
-} from "@/lib/jobpilot-store";
+import { fetchApiKeys } from "@/lib/api";
+import { getCurrentUser, getUserProfile, User, UserProfile } from "@/lib/jobpilot-store";
 
 interface SkillAnalysisProps {
-  /** If true, shows a compact version for the extension popup */
   compact?: boolean;
-  /** If provided, uses this result instead of running AI */
   initialResult?: SkillAnalysisResult | null;
-  /** Callback when analysis completes */
   onResult?: (result: SkillAnalysisResult) => void;
 }
 
-export default function SkillAnalysis({
-  compact,
-  initialResult,
-  onResult,
-}: SkillAnalysisProps) {
+export default function SkillAnalysis({ compact, initialResult, onResult }: SkillAnalysisProps) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -59,7 +40,7 @@ export default function SkillAnalysis({
     if (!u) return;
     setUser(u);
     setProfile(getUserProfile(u.id));
-    setHasApiKey(getApiKeys(u.id).length > 0);
+    fetchApiKeys().then((keys) => setHasApiKey(keys.length > 0)).catch(() => setHasApiKey(false));
   }, []);
 
   const profileComplete = profile && (profile.cvText || profile.skills?.length > 0 || profile.experience?.length > 0);
@@ -70,14 +51,11 @@ export default function SkillAnalysis({
     setResult(null);
     setAnalyzing(true);
     setSuggestionsOpen(false);
-
     const profileText = flattenProfile(profile);
     const systemPrompt = buildSkillAnalysisSystemPrompt();
     const userPrompt = buildSkillAnalysisUserPrompt(jobDescription, profileText);
-
     const res = await callLLM(user.id, systemPrompt, userPrompt);
     setAnalyzing(false);
-
     if (res.ok) {
       const parsed = parseSkillAnalysisResult(res.text);
       setResult(parsed);
@@ -87,7 +65,7 @@ export default function SkillAnalysis({
     }
   }
 
-  // If compact (extension) mode, show just the summary
+  // Compact mode (extension)
   if (compact && result) {
     return (
       <div className="space-y-2">
@@ -133,17 +111,11 @@ export default function SkillAnalysis({
 
   return (
     <div className={cn("space-y-5", compact ? "" : "pb-8")}>
-      {/* Only show input section if not compact */}
       {!compact && (
         <>
           {/* Status cards */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div
-              className={cn(
-                "flex items-start gap-3 rounded-xl border p-4",
-                profileComplete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50",
-              )}
-            >
+            <div className={cn("flex items-start gap-3 rounded-xl border p-4", profileComplete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
               <CheckCircle2 className={cn("mt-0.5 size-5 shrink-0", profileComplete ? "text-emerald-600" : "text-amber-500")} />
               <div>
                 <p className={cn("font-medium text-sm", profileComplete ? "text-emerald-800" : "text-amber-800")}>
@@ -156,13 +128,7 @@ export default function SkillAnalysis({
                 </p>
               </div>
             </div>
-
-            <div
-              className={cn(
-                "flex items-start gap-3 rounded-xl border p-4",
-                hasApiKey ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50",
-              )}
-            >
+            <div className={cn("flex items-start gap-3 rounded-xl border p-4", hasApiKey ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
               <Sparkles className={cn("mt-0.5 size-5 shrink-0", hasApiKey ? "text-emerald-600" : "text-amber-500")} />
               <div>
                 <p className={cn("font-medium text-sm", hasApiKey ? "text-emerald-800" : "text-amber-800")}>
@@ -181,7 +147,7 @@ export default function SkillAnalysis({
               Job Description
             </label>
             <p className="mb-3 text-sm text-slate-500">
-              Paste a job description to analyze which skills you have, which you're missing, and what to learn.
+              Paste a job description to analyze which skills you have, which you are missing, and what to learn next.
             </p>
             <textarea
               id="skillJobDesc"
@@ -224,67 +190,52 @@ export default function SkillAnalysis({
         <div className="space-y-5">
           {/* Summary cards */}
           <div className="grid gap-4 sm:grid-cols-3">
-            {/* Matched */}
             <div className="rounded-xl border border-emerald-200 bg-white p-4">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="size-5 text-emerald-500" />
                 <h3 className="font-semibold text-emerald-800 text-sm">Matched Skills</h3>
               </div>
               <p className="text-2xl font-bold text-emerald-600 mb-3">{result.matched.length}</p>
-              {result.matched.length > 0 ? (
-                <div className="space-y-1">
-                  {result.matched.map((skill) => (
-                    <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
-                      <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
-                      <span>{skill}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">No matching skills found.</p>
-              )}
+              <div className="space-y-1">
+                {result.matched.map((skill) => (
+                  <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
+                    <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{skill}
+                  </div>
+                ))}
+                {result.matched.length === 0 && <p className="text-xs text-slate-400">No matching skills found.</p>}
+              </div>
             </div>
 
-            {/* Missing */}
             <div className="rounded-xl border border-red-200 bg-white p-4">
               <div className="flex items-center gap-2 mb-3">
                 <XCircle className="size-5 text-red-500" />
                 <h3 className="font-semibold text-red-800 text-sm">Missing Skills</h3>
               </div>
               <p className="text-2xl font-bold text-red-600 mb-3">{result.missing.length}</p>
-              {result.missing.length > 0 ? (
-                <div className="space-y-1">
-                  {result.missing.map((skill) => (
-                    <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
-                      <XCircle className="size-3.5 text-red-500 shrink-0" />
-                      <span>{skill}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">No missing skills — great fit!</p>
-              )}
+              <div className="space-y-1">
+                {result.missing.map((skill) => (
+                  <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
+                    <XCircle className="size-3.5 text-red-500 shrink-0" />{skill}
+                  </div>
+                ))}
+                {result.missing.length === 0 && <p className="text-xs text-slate-400">No missing skills — great fit!</p>}
+              </div>
             </div>
 
-            {/* Related */}
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Minus className="size-5 text-slate-500" />
                 <h3 className="font-semibold text-slate-800 text-sm">Related Skills</h3>
               </div>
               <p className="text-2xl font-bold text-slate-600 mb-3">{result.related.length}</p>
-              {result.related.length > 0 ? (
-                <div className="space-y-1">
-                  {result.related.map((skill) => (
-                    <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
-                      <Minus className="size-3.5 text-slate-400 shrink-0" />
-                      <span>{skill}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">No related skills identified.</p>
-              )}
+              <div className="space-y-1">
+                {result.related.map((skill) => (
+                  <div key={skill} className="flex items-center gap-2 text-sm text-slate-700">
+                    <Minus className="size-3.5 text-slate-400 shrink-0" />{skill}
+                  </div>
+                ))}
+                {result.related.length === 0 && <p className="text-xs text-slate-400">No related skills identified.</p>}
+              </div>
             </div>
           </div>
 
@@ -308,17 +259,17 @@ export default function SkillAnalysis({
                       <div className="mt-2 space-y-1">
                         {skills.matched.map((s) => (
                           <div key={s} className="flex items-center gap-1.5 text-xs text-emerald-700">
-                            <CheckCircle2 className="size-3" /> {s}
+                            <CheckCircle2 className="size-3" />{s}
                           </div>
                         ))}
                         {skills.missing.map((s) => (
                           <div key={s} className="flex items-center gap-1.5 text-xs text-red-600">
-                            <XCircle className="size-3" /> {s}
+                            <XCircle className="size-3" />{s}
                           </div>
                         ))}
                         {skills.related.map((s) => (
                           <div key={s} className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <Minus className="size-3" /> {s}
+                            <Minus className="size-3" />{s}
                           </div>
                         ))}
                       </div>
@@ -339,12 +290,12 @@ export default function SkillAnalysis({
               >
                 <div className="flex items-center gap-2">
                   <Lightbulb className="size-5 text-amber-500" />
-                  <h3 className="font-semibold text-slate-900">
-                    Resume Improvement Suggestions
-                  </h3>
+                  <h3 className="font-semibold text-slate-900">Resume Improvement Suggestions</h3>
                   <span className="text-xs text-slate-400">({result.suggestions.length})</span>
                 </div>
-                {suggestionsOpen ? <ChevronDown className="size-4 text-slate-400" /> : <ChevronRight className="size-4 text-slate-400" />}
+                {suggestionsOpen
+                  ? <ChevronDown className="size-4 text-slate-400" />
+                  : <ChevronRight className="size-4 text-slate-400" />}
               </button>
               {suggestionsOpen && (
                 <div className="border-t border-slate-200 px-5 py-4 space-y-2">

@@ -48,6 +48,8 @@ export default function SettingsPage() {
   const [deleteJobsText, setDeleteJobsText] = useState("");
   const [dangerMessage, setDangerMessage] = useState("");
   const [dangerLoading, setDangerLoading] = useState(false);
+  const [resetText, setResetText] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function loadApiKeys() {
     try {
@@ -60,7 +62,6 @@ export default function SettingsPage() {
 
   useEffect(() => { loadApiKeys(); }, []);
 
-  // When provider changes, reset model preset to first option
   useEffect(() => {
     const models = PROVIDER_MODELS[provider];
     setModelPreset(models[0]);
@@ -72,14 +73,8 @@ export default function SettingsPage() {
   async function handleApiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setApiMessage("");
-    if (!effectiveModel.trim()) {
-      setApiMessage("Please enter a model name.");
-      return;
-    }
-    if (!apiKey.trim()) {
-      setApiMessage("API key is required.");
-      return;
-    }
+    if (!effectiveModel.trim()) { setApiMessage("Please enter a model name."); return; }
+    if (!apiKey.trim()) { setApiMessage("API key is required."); return; }
     setApiSaving(true);
     const result = await saveApiKey({ provider, key: apiKey.trim(), modelName: effectiveModel.trim() });
     setApiSaving(false);
@@ -99,7 +94,6 @@ export default function SettingsPage() {
     if (isDemo || deleteJobsText !== "DELETE") return;
     setDangerLoading(true);
     try {
-      // Fetch all jobs and delete them
       const cats = await fetchCategories();
       for (const cat of cats) {
         const resp = await fetchJobs({ categoryId: cat.id, limit: 1000 });
@@ -116,10 +110,22 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleDeleteAccount() {
-    if (isDemo || deleteJobsText !== "DELETE") return;
-    // Sign out — actual account deletion would need a dedicated API endpoint
-    await signOut({ callbackUrl: "/" });
+  async function handleResetProfile() {
+    if (isDemo || resetText !== "RESET") return;
+    setResetLoading(true);
+    setDangerMessage("");
+    try {
+      const res = await fetch("/api/reset-profile", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Reset failed");
+      setResetText("");
+      setDangerMessage("Profile reset. All jobs and API keys deleted. Your account remains active.");
+      await loadApiKeys();
+    } catch (err) {
+      setDangerMessage(err instanceof Error ? err.message : "Reset failed.");
+    } finally {
+      setResetLoading(false);
+    }
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -147,7 +153,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* ── API Keys tab ────────────────────────────────────────────────────── */}
+      {/* ── API Keys tab ─────────────────────────────────────────────── */}
       {tab === "api" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5">
@@ -158,7 +164,6 @@ export default function SettingsPage() {
             </p>
 
             <form className="mt-5 space-y-4" onSubmit={handleApiSubmit}>
-              {/* Provider */}
               <div className="space-y-1.5">
                 <Label htmlFor="provider">Model Provider</Label>
                 <select
@@ -171,7 +176,6 @@ export default function SettingsPage() {
                 </select>
               </div>
 
-              {/* Model */}
               <div className="space-y-1.5">
                 <Label htmlFor="modelPreset">Model</Label>
                 <select
@@ -181,9 +185,7 @@ export default function SettingsPage() {
                   onChange={(e) => setModelPreset(e.target.value)}
                 >
                   {presetModels.map((m) => (
-                    <option key={m} value={m}>
-                      {m === CUSTOM_MODEL ? "Custom model name…" : m}
-                    </option>
+                    <option key={m} value={m}>{m === CUSTOM_MODEL ? "Custom model name…" : m}</option>
                   ))}
                   {!presetModels.includes(CUSTOM_MODEL) && (
                     <option value={CUSTOM_MODEL}>Custom model name…</option>
@@ -199,7 +201,6 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* API Key */}
               <div className="space-y-1.5">
                 <Label htmlFor="apiKey">API Key</Label>
                 <div className="flex gap-2">
@@ -232,7 +233,6 @@ export default function SettingsPage() {
               </Button>
             </form>
 
-            {/* Provider help links */}
             <div className="mt-5 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
               <p className="font-medium mb-1.5">Get your API key:</p>
               <div className="flex flex-wrap gap-3 text-xs">
@@ -255,7 +255,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Saved configs */}
           {apiKeys.length > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="font-semibold text-slate-900">Saved Configurations</h3>
@@ -270,9 +269,7 @@ export default function SettingsPage() {
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      {i === 0 && (
-                        <Badge className="bg-blue-100 text-blue-700 text-xs shrink-0">Active</Badge>
-                      )}
+                      {i === 0 && <Badge className="bg-blue-100 text-blue-700 text-xs shrink-0">Active</Badge>}
                       <Badge variant="secondary" className="shrink-0">{item.provider}</Badge>
                       <span className="text-sm font-medium text-slate-700 truncate">{item.modelName || "—"}</span>
                       <span className="font-mono text-xs text-slate-400">{item.maskedKey}</span>
@@ -292,7 +289,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Danger Zone tab ─────────────────────────────────────────────────── */}
+      {/* ── Danger Zone tab ──────────────────────────────────────────── */}
       {tab === "danger" && (
         <div className="rounded-xl border border-red-200 bg-white p-5">
           <h2 className="font-semibold text-red-700">Danger Zone</h2>
@@ -306,11 +303,45 @@ export default function SettingsPage() {
             <div className="mt-4 space-y-4">
               <div className="rounded-lg border border-red-100 bg-red-50 p-4">
                 <h3 className="font-medium text-slate-800">Delete All My Jobs</h3>
-                <p className="mt-1 text-sm text-slate-500">Type <span className="font-mono font-semibold">DELETE</span> to remove all tracked jobs.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Type <span className="font-mono font-semibold">DELETE</span> to remove all tracked jobs.
+                </p>
                 <div className="mt-3 flex items-center gap-3">
-                  <Input className="max-w-40" value={deleteJobsText} onChange={(e) => setDeleteJobsText(e.target.value)} placeholder="DELETE" />
-                  <Button type="button" variant="destructive" disabled={deleteJobsText !== "DELETE" || dangerLoading} onClick={handleDeleteAllJobs}>
+                  <Input
+                    className="max-w-40"
+                    value={deleteJobsText}
+                    onChange={(e) => setDeleteJobsText(e.target.value)}
+                    placeholder="DELETE"
+                  />
+                  <Button
+                    type="button" variant="destructive"
+                    disabled={deleteJobsText !== "DELETE" || dangerLoading}
+                    onClick={handleDeleteAllJobs}
+                  >
                     {dangerLoading ? "Deleting…" : "Delete All Jobs"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+                <h3 className="font-medium text-slate-800">Reset Profile</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Deletes all tracked jobs, profile data, and saved API keys. Your account (email + password) is kept.
+                  Type <span className="font-mono font-semibold">RESET</span> to confirm.
+                </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Input
+                    className="max-w-40"
+                    value={resetText}
+                    onChange={(e) => setResetText(e.target.value)}
+                    placeholder="RESET"
+                  />
+                  <Button
+                    type="button" variant="destructive"
+                    disabled={resetText !== "RESET" || resetLoading}
+                    onClick={handleResetProfile}
+                  >
+                    {resetLoading ? "Resetting…" : "Reset Profile"}
                   </Button>
                 </div>
               </div>
@@ -325,7 +356,9 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {dangerMessage ? <p className="text-sm font-medium text-red-700">{dangerMessage}</p> : null}
+              {dangerMessage && (
+                <p className="text-sm font-medium text-red-700">{dangerMessage}</p>
+              )}
             </div>
           )}
         </div>
