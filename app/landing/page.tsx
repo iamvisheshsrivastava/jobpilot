@@ -15,7 +15,7 @@ const features = [
 
 const steps = [
   {
-    icon: Chrome,
+    icon: Globe,
     step: "1",
     title: "Install the Extension",
     description: "Add JobPilot to Chrome (also works on Brave and Edge). It takes under 30 seconds.",
