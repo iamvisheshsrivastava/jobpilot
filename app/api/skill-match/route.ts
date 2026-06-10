@@ -73,7 +73,14 @@ export async function POST(req: Request) {
   }
 
   const provider = keyRecord.provider
-  const model = keyRecord.modelName ?? MODEL_DEFAULTS[provider] ?? 'gpt-4o-mini'
+  const DEPRECATED_MODELS: Record<string, string> = {
+    'mistralai/mistral-7b-instruct': 'meta-llama/llama-3.1-8b-instruct:free',
+    'mistralai/mistral-7b-instruct:free': 'meta-llama/llama-3.1-8b-instruct:free',
+    'openrouter:free': 'meta-llama/llama-3.1-8b-instruct:free',
+    'custom': 'meta-llama/llama-3.1-8b-instruct:free',
+  }
+  const savedModel = keyRecord.modelName ?? MODEL_DEFAULTS[provider.toUpperCase()] ?? 'gpt-4o-mini'
+  const model = DEPRECATED_MODELS[savedModel] ?? savedModel
 
   const systemPrompt = `You are a skill extraction assistant. Extract the required technical skills from the job description provided. Return ONLY a JSON object in this exact format, no explanation or other text:
 {

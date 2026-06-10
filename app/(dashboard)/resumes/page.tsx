@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Pencil, Trash2, ExternalLink, X } from "lucide-react";
+import { FileText, Plus, Pencil, Trash2, ExternalLink, Upload, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { DEMO_ACCOUNT_EMAIL } from "@/lib/api";
 
@@ -31,8 +31,22 @@ export default function ResumesPage() {
   const [formName, setFormName] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formFileUrl, setFormFileUrl] = useState("");
+  const [formFile, setFormFile] = useState<File | null>(null);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError("File too large. Max size is 5 MB.");
+      return;
+    }
+    setFormFile(file);
+    setFormFileUrl(""); // clear manual URL if file is chosen
+    setFormError("");
+  }
 
   const fetchVersions = useCallback(async () => {
     setLoading(true);
@@ -58,6 +72,7 @@ export default function ResumesPage() {
     setFormName("");
     setFormNotes("");
     setFormFileUrl("");
+    setFormFile(null);
     setFormError("");
     setShowModal(true);
   }
@@ -66,7 +81,8 @@ export default function ResumesPage() {
     setEditTarget(v);
     setFormName(v.name);
     setFormNotes(v.notes || "");
-    setFormFileUrl(v.fileUrl || "");
+    setFormFileUrl(v.fileUrl?.startsWith("data:") ? "" : (v.fileUrl || ""));
+    setFormFile(null);
     setFormError("");
     setShowModal(true);
   }
@@ -80,11 +96,22 @@ export default function ResumesPage() {
     setFormError("");
 
     try {
+      // Convert uploaded file to base64 data URL (stored directly in DB — no extra services needed)
+      let fileUrl: string | null = formFileUrl.trim() || null;
+      if (formFile) {
+        fileUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(formFile);
+        });
+      }
+
       if (editTarget) {
         const res = await fetch(`/api/resume-versions/${editTarget.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formName.trim(), notes: formNotes.trim() || null, fileUrl: formFileUrl.trim() || null }),
+          body: JSON.stringify({ name: formName.trim(), notes: formNotes.trim() || null, fileUrl }),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -96,7 +123,7 @@ export default function ResumesPage() {
         const res = await fetch("/api/resume-versions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formName.trim(), notes: formNotes.trim() || null, fileUrl: formFileUrl.trim() || null }),
+          body: JSON.stringify({ name: formName.trim(), notes: formNotes.trim() || null, fileUrl }),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -169,15 +196,26 @@ export default function ResumesPage() {
               </div>
 
               {v.fileUrl && (
-                <a
-                  href={v.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                >
-                  <ExternalLink className="size-3" />
-                  View File
-                </a>
+                v.fileUrl.startsWith("data:") ? (
+                  <a
+                    href={v.fileUrl}
+                    download={`${v.name}.${v.fileUrl.includes("pdf") ? "pdf" : "docx"}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  >
+                    <FileText className="size-3" />
+                    Download File
+                  </a>
+                ) : (
+                  <a
+                    href={v.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  >
+                    <ExternalLink className="size-3" />
+                    View File
+                  </a>
+                )
               )}
 
               {!isDemo && (
@@ -233,13 +271,51 @@ export default function ResumesPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">File URL (optional)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Resume File</label>
+                {/* Hidden file input */}
                 <input
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-                  placeholder="https://example.com/my-resume.pdf"
-                  value={formFileUrl}
-                  onChange={(e) => setFormFileUrl(e.target.value)}
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileChange}
                 />
+                {/* Upload button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 px-3 py-3 text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                >
+                  <Upload className="size-4" />
+                  {formFile ? formFile.name : "Click to upload PDF or Word doc (max 5 MB)"}
+                </button>
+                {formFile && (
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-red-500 hover:underline"
+                    onClick={() => { setFormFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  >
+                    Remove file
+                  </button>
+                )}
+                {/* OR paste a URL */}
+                {!formFile && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-xs text-slate-400">Or paste a link (Google Drive, Dropbox, etc.)</p>
+                    <input
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="https://drive.google.com/..."
+                      value={formFileUrl}
+                      onChange={(e) => setFormFileUrl(e.target.value)}
+                    />
+                  </div>
+                )}
+                {/* Show existing file info when editing */}
+                {editTarget?.fileUrl && !formFile && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    {editTarget.fileUrl.startsWith("data:") ? "✓ File already uploaded" : `Current: ${editTarget.fileUrl.slice(0, 60)}…`}
+                  </p>
+                )}
               </div>
 
               {formError && <p className="text-sm text-red-600">{formError}</p>}

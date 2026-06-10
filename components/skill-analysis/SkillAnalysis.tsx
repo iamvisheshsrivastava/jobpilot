@@ -16,7 +16,6 @@ import {
 } from "@/lib/skill-analysis";
 import { callLLM } from "@/lib/llm";
 import { fetchApiKeys } from "@/lib/api";
-import { getCurrentUser, getUserProfile, User, UserProfile } from "@/lib/jobpilot-store";
 
 interface SkillAnalysisProps {
   compact?: boolean;
@@ -25,8 +24,7 @@ interface SkillAnalysisProps {
 }
 
 export default function SkillAnalysis({ compact, initialResult, onResult }: SkillAnalysisProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [jobDescription, setJobDescription] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -36,25 +34,45 @@ export default function SkillAnalysis({ compact, initialResult, onResult }: Skil
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) return;
-    setUser(u);
-    setProfile(getUserProfile(u.id));
+    // Fetch profile from server (NextAuth+Prisma, not localStorage)
+    fetch("/api/profile")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setProfile(data))
+      .catch(() => setProfile(null));
     fetchApiKeys().then((keys) => setHasApiKey(keys.length > 0)).catch(() => setHasApiKey(false));
   }, []);
 
-  const profileComplete = profile && (profile.cvText || profile.skills?.length > 0 || profile.experience?.length > 0);
+  const parseJsonField = (v: unknown): unknown[] => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+    return [];
+  };
+
+  const profileComplete = profile && (
+    profile.cvText ||
+    parseJsonField(profile.skills).length > 0 ||
+    parseJsonField(profile.experience).length > 0
+  );
 
   async function handleAnalyze() {
-    if (!user || !profile || !jobDescription.trim()) return;
+    if (!profile || !jobDescription.trim()) return;
     setError("");
     setResult(null);
     setAnalyzing(true);
     setSuggestionsOpen(false);
-    const profileText = flattenProfile(profile);
+    // Build a shape compatible with flattenProfile
+    const normalizedProfile = {
+      summary: profile.summary as string | undefined,
+      cvText: profile.cvText as string | undefined,
+      skills: parseJsonField(profile.skills) as string[],
+      experience: parseJsonField(profile.experience) as { title?: string; company?: string; description?: string }[],
+      education: parseJsonField(profile.education) as { degree?: string; field?: string; institution?: string }[],
+      certifications: parseJsonField(profile.certifications) as string[],
+    };
+    const profileText = flattenProfile(normalizedProfile);
     const systemPrompt = buildSkillAnalysisSystemPrompt();
     const userPrompt = buildSkillAnalysisUserPrompt(jobDescription, profileText);
-    const res = await callLLM(user.id, systemPrompt, userPrompt);
+    const res = await callLLM("", systemPrompt, userPrompt);
     setAnalyzing(false);
     if (res.ok) {
       const parsed = parseSkillAnalysisResult(res.text);

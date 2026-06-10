@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   }
 
   const provider = keyRecord.provider
+  const providerKey = provider.toUpperCase()
   const modelDefaults: Record<string, string> = {
     GROQ: 'llama-3.3-70b-versatile',
     OPENROUTER: 'meta-llama/llama-3.1-8b-instruct:free',
@@ -48,13 +49,15 @@ export async function POST(req: Request) {
     ANTHROPIC: 'claude-3-5-haiku-20241022',
     GEMINI: 'gemini-1.5-flash',
   }
-  // Known deprecated/removed models → override with a working default
+  // Known deprecated/removed/invalid models → override with a working default
   const DEPRECATED_MODELS: Record<string, string> = {
     'mistralai/mistral-7b-instruct': 'meta-llama/llama-3.1-8b-instruct:free',
     'mistralai/mistral-7b-instruct:free': 'meta-llama/llama-3.1-8b-instruct:free',
     'openai/gpt-3.5-turbo': 'meta-llama/llama-3.1-8b-instruct:free',
+    'openrouter:free': 'meta-llama/llama-3.1-8b-instruct:free',
+    'custom': 'meta-llama/llama-3.1-8b-instruct:free',
   }
-  const savedModel = keyRecord.modelName ?? modelDefaults[provider] ?? 'gpt-4o-mini'
+  const savedModel = keyRecord.modelName ?? modelDefaults[providerKey] ?? 'gpt-4o-mini'
   const model = DEPRECATED_MODELS[savedModel] ?? savedModel
 
   try {
