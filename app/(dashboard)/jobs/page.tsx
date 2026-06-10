@@ -18,6 +18,7 @@ import {
   Briefcase,
   Columns3,
   Download,
+  ExternalLink,
   FileText,
   List,
   MoreHorizontal,
@@ -905,6 +906,7 @@ export default function JobsPage() {
                 <TableHead className="w-16">#</TableHead>
                 <SortableHead label="Title" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
                 <SortableHead label="Company" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
+                <TableHead className="w-16">URL</TableHead>
                 <SortableHead label="Status" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
                 <SortableHead label="Priority" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
                 <SortableHead label="Deadline" sortBy={sortBy} sortAsc={sortAsc} setSortBy={setSortBy} setSortAsc={setSortAsc} />
@@ -915,7 +917,7 @@ export default function JobsPage() {
             <TableBody>
               {pagedJobs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={selectionMode ? 10 : 9} className="h-32 text-center text-slate-400">
+                  <TableCell colSpan={selectionMode ? 11 : 10} className="h-32 text-center text-slate-400">
                     {categories.length === 0 ? "Create a category to start tracking jobs." : "No jobs match this view."}
                   </TableCell>
                 </TableRow>
@@ -955,16 +957,27 @@ export default function JobsPage() {
                         </TableCell>
                         <TableCell className="font-mono text-xs text-slate-400">#{job.jobNumber}</TableCell>
                         <TableCell className="min-w-56">
-                          {job.link ? (
-                            <a href={job.link} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline">{job.title}</a>
-                          ) : (
-                            <span className="font-medium text-slate-800">{job.title}</span>
-                          )}
+                          <span className="font-medium text-slate-800">{job.title}</span>
                           {job.duplicateGroupId && (
                             <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">duplicate</span>
                           )}
                         </TableCell>
                         <TableCell className="text-slate-600">{job.company || "-"}</TableCell>
+                        <TableCell>
+                          {job.link ? (
+                            <a
+                              href={job.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 transition-colors"
+                            >
+                              <ExternalLink className="size-3" />
+                              Open
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </TableCell>
                         <TableCell><Badge className={cn("text-xs", statusClass(job.status))}>{job.status}</Badge></TableCell>
                         <TableCell><Badge className={cn("text-xs", priorityClass(job.priority))}>{job.priority}</Badge></TableCell>
                         <TableCell className="text-slate-600">{formatDate(job.deadline)}</TableCell>
@@ -1008,7 +1021,7 @@ export default function JobsPage() {
 
                       {notesOpen && (
                         <TableRow key={`${job.id}-notes`} className="bg-slate-50">
-                          <TableCell colSpan={selectionMode ? 10 : 9} className="py-2 px-4">
+                          <TableCell colSpan={selectionMode ? 11 : 10} className="py-2 px-4">
                             <div className="flex flex-col gap-2">
                               <Label className="text-xs text-slate-500">Notes for &ldquo;{job.title}&rdquo;</Label>
                               <textarea
