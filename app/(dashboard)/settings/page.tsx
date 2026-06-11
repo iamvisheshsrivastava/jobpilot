@@ -414,16 +414,48 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-sm text-slate-600">Not connected</p>
-                    <Button
-                      type="button" size="sm"
-                      onClick={() => { if (telegramStatus?.connectUrl) window.open(telegramStatus.connectUrl, "_blank"); }}
-                    >
-                      Connect Telegram
-                    </Button>
+                    <p className="text-sm text-slate-600">
+                      {telegramLoading ? "⏳ Waiting for connection…" : "Not connected"}
+                    </p>
+                    <div className="flex gap-2">
+                      {telegramLoading && (
+                        <Button
+                          type="button" variant="outline" size="sm"
+                          onClick={async () => {
+                            setTelegramLoading(false);
+                            const d = await fetch("/api/telegram/status").then(r => r.json()).catch(() => null);
+                            if (d) setTelegramStatus(d);
+                          }}
+                        >
+                          Check Now
+                        </Button>
+                      )}
+                      <Button
+                        type="button" size="sm"
+                        onClick={() => {
+                          if (!telegramStatus?.connectUrl) return;
+                          window.open(telegramStatus.connectUrl, "_blank");
+                          setTelegramLoading(true);
+                          // Poll every 3s for up to 2 minutes
+                          let attempts = 0;
+                          const interval = setInterval(async () => {
+                            attempts++;
+                            const d = await fetch("/api/telegram/status").then(r => r.json()).catch(() => null);
+                            if (d?.connected) {
+                              setTelegramStatus(d);
+                              setTelegramLoading(false);
+                              clearInterval(interval);
+                            }
+                            if (attempts >= 40) { setTelegramLoading(false); clearInterval(interval); }
+                          }, 3000);
+                        }}
+                      >
+                        {telegramLoading ? "Waiting…" : "Connect Telegram"}
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Clicking the button opens Telegram. Press <strong>Start</strong> in the bot chat — that links your account. You need the <strong>Telegram app</strong> installed on your phone.
+                    Clicking the button opens Telegram. Press <strong>Start</strong> in the bot chat — that links your account. The page will update automatically once connected.
                   </p>
                 </div>
               )}
