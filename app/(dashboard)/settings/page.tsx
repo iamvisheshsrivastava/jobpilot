@@ -374,4 +374,80 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Dange
+      {/* ── Danger Zone tab ──────────────────────────────────────────── */}
+      {tab === "danger" && (
+        <div className="rounded-xl border border-red-200 bg-white p-5">
+          <h2 className="font-semibold text-red-700">Danger Zone</h2>
+          <p className="mt-0.5 text-sm text-slate-500">These actions are permanent and cannot be undone.</p>
+
+          {isDemo ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              Danger zone actions are disabled for the demo account.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+                <h3 className="font-medium text-slate-800">Delete All My Jobs</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Type <span className="font-mono font-semibold">DELETE</span> to remove all tracked jobs.
+                </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Input
+                    className="max-w-40"
+                    value={deleteJobsText}
+                    onChange={(e) => setDeleteJobsText(e.target.value)}
+                    placeholder="DELETE"
+                  />
+                  <Button
+                    type="button" variant="destructive"
+                    disabled={deleteJobsText !== "DELETE" || dangerLoading}
+                    onClick={handleDeleteAllJobs}
+                  >
+                    {dangerLoading ? "Deleting…" : "Delete All Jobs"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+                <h3 className="font-medium text-slate-800">Reset Profile</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Deletes all tracked jobs, profile data, and saved API keys. Your account (email + password) is kept.
+                  Type <span className="font-mono font-semibold">RESET</span> to confirm.
+                </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Input
+                    className="max-w-40"
+                    value={resetText}
+                    onChange={(e) => setResetText(e.target.value)}
+                    placeholder="RESET"
+                  />
+                  <Button
+                    type="button" variant="destructive"
+                    disabled={resetText !== "RESET" || resetLoading}
+                    onClick={handleResetProfile}
+                  >
+                    {resetLoading ? "Resetting…" : "Reset Profile"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
+                <h3 className="font-medium text-slate-800">Sign Out</h3>
+                <p className="mt-1 text-sm text-slate-500">Sign out of your account on this device.</p>
+                <div className="mt-3">
+                  <Button type="button" variant="outline" onClick={() => signOut({ callbackUrl: "/" })}>
+                    Sign Out
+                  </Button>
+                </div>
+              </div>
+
+              {dangerMessage && (
+                <p className="text-sm font-medium text-red-700">{dangerMessage}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
