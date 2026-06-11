@@ -8,9 +8,8 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getUserProfile, getResumes } from "@/lib/jobpilot-store";
 import {
-  generatePortfolioIntelligence,
+  generatePortfolioIntelligenceFromData,
   PortfolioIntelligence,
   TechnologyEvidence,
   DomainStrength,
@@ -46,23 +45,36 @@ export default function InsightsPage() {
 
   useEffect(() => {
     if (status === "loading") return;
-    const userId = (session?.user as { id?: string })?.id;
-    if (!userId) { setLoading(false); return; }
-    const profile = getUserProfile(userId);
-    const resumes = getResumes(userId);
-    // Only run if user has data
-    if (!profile.skills?.length && !profile.cvText && !resumes.length && !profile.experience?.length) {
-      setIntel(null);
-      setLoading(false);
-      return;
+    if (!session?.user) { setLoading(false); return; }
+
+    async function load() {
+      try {
+        const [profileRes, resumesRes, jobsRes] = await Promise.all([
+          fetch("/api/profile"),
+          fetch("/api/resume-versions"),
+          fetch("/api/jobs"),
+        ]);
+        const profile = profileRes.ok ? await profileRes.json() : {};
+        const resumesRaw = resumesRes.ok ? await resumesRes.json() : [];
+        const jobsRaw = jobsRes.ok ? await jobsRes.json() : [];
+
+        const resumes = (Array.isArray(resumesRaw) ? resumesRaw : []).map((r: { content?: string; name?: string }) => ({ content: r.content || "", name: r.name || "" }));
+        const jobs = (Array.isArray(jobsRaw) ? jobsRaw : []).map((j: { id: string; title: string; notes?: string; comments?: string }) => ({ id: j.id, title: j.title, notes: j.notes, comments: j.comments }));
+
+        const hasData = profile.skills || profile.cvText || profile.experience || resumes.length;
+        if (!hasData) { setIntel(null); setLoading(false); return; }
+
+        const result = generatePortfolioIntelligenceFromData(profile, resumes, jobs);
+        setIntel(result);
+      } catch (e) {
+        console.error("Insights load error:", e);
+        setIntel(null);
+      } finally {
+        setLoading(false);
+      }
     }
-    // Small delay to simulate analysis
-    const timer = setTimeout(() => {
-      const result = generatePortfolioIntelligence(userId);
-      setIntel(result);
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+
+    load();
   }, [session, status]);
 
   // ── Section highlights ──

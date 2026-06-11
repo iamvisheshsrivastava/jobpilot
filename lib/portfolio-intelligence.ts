@@ -153,10 +153,35 @@ function evidenceLevel(count: number, sources: number): EvidenceLevel {
 
 // ── Build portfolio from all sources ──────────────────────────────────────────
 
-export function buildPortfolio(userId: string): PortfolioSummary {
-  const profile = getUserProfile(userId);
-  const resumes = getResumes(userId);
-  const jobs = getJobs(userId);
+export type RawProfile = {
+  skills?: string | string[]; experience?: string | { title: string; company: string; description?: string }[];
+  education?: string | { degree: string; field?: string; institution: string }[];
+  certifications?: string | string[]; cvText?: string;
+};
+export type RawResume = { content: string; name?: string };
+export type RawJob = { id: string; title: string; notes?: string | null; comments?: string | null };
+
+function normalizeProfile(raw: RawProfile): { skills: string[]; experience: { title: string; company: string; description: string }[]; education: { degree: string; field?: string; institution: string }[]; certifications: string[]; cvText?: string } {
+  const parse = (v: unknown) => { if (Array.isArray(v)) return v; if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } } return []; };
+  return {
+    skills: parse(raw.skills) as string[],
+    experience: parse(raw.experience) as { title: string; company: string; description: string }[],
+    education: parse(raw.education) as { degree: string; field?: string; institution: string }[],
+    certifications: parse(raw.certifications) as string[],
+    cvText: raw.cvText,
+  };
+}
+
+export function buildPortfolioFromData(profile: RawProfile, resumes: RawResume[], jobs: RawJob[]): PortfolioSummary {
+  const p = normalizeProfile(profile);
+  return _buildPortfolioCore(p, resumes, jobs);
+}
+
+function _buildPortfolioCore(
+  profile: ReturnType<typeof normalizeProfile>,
+  resumes: RawResume[],
+  jobs: RawJob[],
+): PortfolioSummary {
 
   const allTexts: string[] = [];
   const projects: Project[] = [];
@@ -271,6 +296,13 @@ export function buildPortfolio(userId: string): PortfolioSummary {
   const weakAreas = domains.filter((d) => d.level === "weak" || d.level === "none").map((d) => d.domain);
 
   return { projects, technologies, domains, primaryFocus, strongAreas, weakAreas };
+}
+
+export function buildPortfolio(userId: string): PortfolioSummary {
+  const profile = getUserProfile(userId);
+  const resumes = getResumes(userId);
+  const jobs = getJobs(userId);
+  return _buildPortfolioCore(normalizeProfile(profile), resumes, jobs);
 }
 
 // ── Gap analysis ─────────────────────────────────────────────────────────────
@@ -409,6 +441,29 @@ export function analyzeSkillDemand(userId: string): SkillDemand[] {
     .slice(0, 15);
 }
 
+export function analyzeSkillDemandFromJobs(jobs: RawJob[]): SkillDemand[] {
+  if (!jobs.length) return [];
+  const missingCount = new Map<string, number>();
+  const seenJobs = new Set<string>();
+  for (const job of jobs) {
+    if (!job.notes || seenJobs.has(job.id)) continue;
+    seenJobs.add(job.id);
+    const missingMatch = job.notes.match(/"missing"\s*:\s*\[([^\]]+)\]/i);
+    if (missingMatch) {
+      const skills = missingMatch[1].match(/"([^"]+)"/g);
+      if (skills) {
+        for (const s of skills) {
+          const cleaned = s.replace(/"/g, "").trim().toLowerCase();
+          if (cleaned) missingCount.set(cleaned, (missingCount.get(cleaned) || 0) + 1);
+        }
+      }
+    }
+  }
+  return Array.from(missingCount.entries())
+    .map(([skill, count]) => ({ skill, missingCount: count, totalJobs: jobs.length, frequency: +(count / jobs.length).toFixed(2) }))
+    .sort((a, b) => b.missingCount - a.missingCount).slice(0, 15);
+}
+
 // ── Recommendations ──────────────────────────────────────────────────────────
 
 export function generateRecommendations(
@@ -467,5 +522,18 @@ export function generatePortfolioIntelligence(
   const skillDemand = analyzeSkillDemand(userId);
   const recommendations = generateRecommendations(summary, gapAnalysis, careerReadiness, skillDemand);
 
+  return { summary, gapAnalysis, careerReadiness, skillDemand, recommendations };
+}
+
+export function generatePortfolioIntelligenceFromData(
+  profile: RawProfile,
+  resumes: RawResume[],
+  jobs: RawJob[],
+): PortfolioIntelligence {
+  const summary = buildPortfolioFromData(profile, resumes, jobs);
+  const gapAnalysis = analyzeGaps(summary);
+  const careerReadiness = assessCareerReadiness(summary);
+  const skillDemand = analyzeSkillDemandFromJobs(jobs);
+  const recommendations = generateRecommendations(summary, gapAnalysis, careerReadiness, skillDemand);
   return { summary, gapAnalysis, careerReadiness, skillDemand, recommendations };
 }
