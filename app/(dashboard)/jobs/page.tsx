@@ -929,7 +929,8 @@ export default function JobsPage() {
                     <>
                       <TableRow
                         key={job.id}
-                        className={cn(dupColor, selectedIds.has(job.id) && "bg-blue-50")}
+                        className={cn(dupColor, selectedIds.has(job.id) && "bg-blue-50", "cursor-pointer")}
+                        onDoubleClick={() => openEditJob(job)}
                       >
                         {selectionMode && (
                           <TableCell>

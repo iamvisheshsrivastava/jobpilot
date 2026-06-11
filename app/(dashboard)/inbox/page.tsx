@@ -242,49 +242,6 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {!gmailStatus?.connected && (
-          <div className="mt-4 space-y-3">
-            <p className="text-xs text-slate-500 font-medium">How to connect your Gmail in 3 steps:</p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {[
-                {
-                  step: "1",
-                  title: "Create Google OAuth App",
-                  desc: "Go to console.cloud.google.com → APIs & Services → Credentials → Create OAuth 2.0 Client ID (Web application).",
-                  href: "https://console.cloud.google.com/apis/credentials",
-                  linkText: "Open Google Console →",
-                },
-                {
-                  step: "2",
-                  title: "Add Redirect URI",
-                  desc: `In the OAuth client, add this as an Authorized Redirect URI:`,
-                  code: `${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/api/auth/gmail/callback`,
-                },
-                {
-                  step: "3",
-                  title: "Add to Vercel Env Vars",
-                  desc: "In Vercel → Settings → Environment Variables, add:",
-                  code: "GOOGLE_CLIENT_ID\nGOOGLE_CLIENT_SECRET\nGOOGLE_REDIRECT_URI",
-                },
-              ].map((s) => (
-                <div key={s.step} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-violet-100 text-[11px] font-bold text-violet-700">{s.step}</span>
-                    <p className="text-xs font-semibold text-slate-700">{s.title}</p>
-                  </div>
-                  <p className="text-xs text-slate-500">{s.desc}</p>
-                  {s.code && (
-                    <pre className="mt-1.5 overflow-x-auto rounded bg-white border border-slate-200 px-2 py-1 text-[10px] text-slate-600 whitespace-pre-wrap">{s.code}</pre>
-                  )}
-                  {s.href && (
-                    <a href={s.href} target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-xs text-violet-600 hover:underline">{s.linkText}</a>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400">After setting the env vars and redeploying, click &quot;Connect Gmail&quot; above — you&apos;ll see Google&apos;s permission screen just like other apps.</p>
-          </div>
-        )}
       </div>
 
       {/* Notifications list */}

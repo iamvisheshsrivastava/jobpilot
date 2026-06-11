@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3, Bell, Brain, Briefcase, ChevronDown,
   FileText, Inbox, LogOut, Menu, Moon,
@@ -11,6 +11,17 @@ import {
 import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  emailFrom?: string | null;
+  emailSubject?: string | null;
+  read: boolean;
+  createdAt: string;
+}
 
 const DEMO_EMAIL = "demo@jobpilot.app";
 
@@ -41,9 +52,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const user = session?.user ?? null;
   const isDemo = user?.email === DEMO_EMAIL;
@@ -58,6 +73,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     function handler(e: MouseEvent) {
       if (themeRef.current && !themeRef.current.contains(e.target as Node)) setThemeOpen(false);
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) setAvatarOpen(false);
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -71,6 +87,33 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       .then((d) => setUnreadCount(d.unreadCount ?? 0))
       .catch(() => {});
   }, [status, pathname]);
+
+  // Load notifications when bell opens
+  const loadNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    try {
+      const r = await fetch("/api/notifications?limit=20");
+      const d = await r.json();
+      setNotifications(d.notifications ?? []);
+      setUnreadCount(d.unreadCount ?? 0);
+    } catch { /* ignore */ } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  const markRead = useCallback(async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => n.id === id ? { ...n, read: true } : n)
+    );
+    setUnreadCount((c) => Math.max(0, c - 1));
+    await fetch(`/api/notifications/${id}`, { method: "PATCH" }).catch(() => {});
+  }, []);
+
+  const markAllRead = useCallback(async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+    await fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
+  }, []);
 
   const initials = useMemo(() => {
     const label = user?.name || user?.email || "U";
@@ -267,19 +310,128 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-1">
-            {/* Bell */}
-            <Link
-              href="/inbox"
-              className="relative rounded-full p-2 transition-colors hover:bg-black/5"
-              style={{ color: "var(--theme-nav-text, #64748b)" }}
-            >
-              <Bell className="size-5" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
+            {/* Bell + notification panel */}
+            <div className="relative" ref={bellRef}>
+              <button
+                className="relative rounded-full p-2 transition-colors hover:bg-black/5"
+                style={{ color: "var(--theme-nav-text, #64748b)" }}
+                onClick={() => {
+                  const next = !bellOpen;
+                  setBellOpen(next);
+                  setThemeOpen(false);
+                  setAvatarOpen(false);
+                  if (next) loadNotifications();
+                }}
+                title="Notifications"
+              >
+                <Bell className="size-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {bellOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-80 rounded-2xl border shadow-xl z-50 overflow-hidden"
+                  style={{
+                    background: "var(--theme-card-bg, #ffffff)",
+                    borderColor: "var(--theme-sidebar-border, #e2e8f0)",
+                  }}
+                >
+                  {/* Header */}
+                  <div
+                    className="flex items-center justify-between px-4 py-3 border-b"
+                    style={{ borderColor: "var(--theme-sidebar-border, #e2e8f0)" }}
+                  >
+                    <span className="text-sm font-semibold" style={{ color: isDark ? "#e2e8f0" : "#1e293b" }}>
+                      Notifications
+                    </span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        className="text-xs font-medium"
+                        style={{ color: "var(--theme-nav-active-text, #6d28d9)" }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifLoading ? (
+                      <div className="flex items-center justify-center py-10 text-slate-400 text-sm">Loading…</div>
+                    ) : notifications.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 py-10 text-slate-400">
+                        <Bell className="size-8 opacity-30" />
+                        <p className="text-sm">No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.map((n) => {
+                        const EMOJI: Record<string, string> = {
+                          REJECTION: "❌", INTERVIEW: "🎉", OFFER: "🏆",
+                          APPLICATION_CONFIRMATION: "✅", OTHER: "📧",
+                        };
+                        return (
+                          <button
+                            key={n.id}
+                            onClick={() => { if (!n.read) markRead(n.id); }}
+                            className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-black/5"
+                            style={{
+                              background: n.read ? "transparent" : "var(--theme-nav-active-bg, #eff6ff)",
+                            }}
+                          >
+                            {/* Unread dot */}
+                            <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{
+                              background: n.read ? "transparent" : "#3b82f6",
+                            }} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm">{EMOJI[n.type] ?? "📧"}</span>
+                                <p
+                                  className="text-sm font-medium truncate"
+                                  style={{ color: isDark ? "#e2e8f0" : "#1e293b" }}
+                                >
+                                  {n.title}
+                                </p>
+                              </div>
+                              <p className="mt-0.5 text-xs truncate" style={{ color: "var(--theme-nav-text, #64748b)" }}>
+                                {n.body}
+                              </p>
+                              {n.emailFrom && (
+                                <p className="mt-0.5 text-[11px] truncate" style={{ color: "var(--theme-nav-text, #94a3b8)" }}>
+                                  {n.emailFrom}
+                                </p>
+                              )}
+                              <p className="mt-1 text-[10px]" style={{ color: "var(--theme-nav-text, #94a3b8)" }}>
+                                {new Date(n.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    className="border-t px-4 py-2.5"
+                    style={{ borderColor: "var(--theme-sidebar-border, #e2e8f0)" }}
+                  >
+                    <Link
+                      href="/inbox"
+                      onClick={() => setBellOpen(false)}
+                      className="block text-center text-xs font-medium"
+                      style={{ color: "var(--theme-nav-active-text, #6d28d9)" }}
+                    >
+                      View all in Inbox →
+                    </Link>
+                  </div>
+                </div>
               )}
-            </Link>
+            </div>
 
             {/* Theme switcher */}
             <div className="relative" ref={themeRef}>
