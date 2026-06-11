@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3, Bell, Brain, Briefcase, ChevronDown,
-  Crown, FileText, Inbox, LogOut, Menu, Moon,
+  FileText, Inbox, LogOut, Menu, Moon,
   Rocket, Settings, Sparkles, Sun, User2, X,
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
@@ -180,33 +180,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {/* Go Pro */}
-        <div
-          className="mx-3 mb-3 rounded-xl p-3"
-          style={{
-            background: "var(--theme-pro-bg, #faf5ff)",
-            border: "1px solid var(--theme-pro-border, #e9d5ff)",
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <Crown className="size-4" style={{ color: "var(--theme-pro-text, #6d28d9)" }} />
-            <p className="text-sm font-semibold" style={{ color: "var(--theme-pro-text, #6d28d9)" }}>
-              Go Pro
-            </p>
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "var(--theme-nav-text, #64748b)" }}>
-            Unlock advanced insights, AI tools and more.
-          </p>
-          <button
-            className="mt-2.5 flex w-full items-center justify-center rounded-lg py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
-            style={{
-              border: "1px solid var(--theme-pro-border, #e9d5ff)",
-              color: "var(--theme-pro-text, #6d28d9)",
-            }}
-          >
-            Upgrade Now
-          </button>
-        </div>
 
         {/* User section */}
         <div
