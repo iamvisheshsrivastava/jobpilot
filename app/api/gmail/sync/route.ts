@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
+import { sendTelegramMessage } from "@/lib/telegram";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,10 @@ Body (first 800 chars): ${body.slice(0, 800)}`;
 // ── Main sync function for one user ──────────────────────────────────────────
 
 async function syncUserGmail(userId: string): Promise<number> {
-  const gmailToken = await prisma.gmailToken.findUnique({ where: { userId } });
+  const [gmailToken, user] = await Promise.all([
+    prisma.gmailToken.findUnique({ where: { userId } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true } }),
+  ]);
   if (!gmailToken) return 0;
 
   const accessToken = await getValidAccessToken(gmailToken);
@@ -221,6 +225,19 @@ async function syncUserGmail(userId: string): Promise<number> {
         gmailMsgId: msgId,
       },
     });
+
+    // Push Telegram notification if user has it connected
+    if (user?.telegramChatId) {
+      const emoji: Record<EmailType, string> = {
+        REJECTION: "❌", INTERVIEW: "🎉", OFFER: "🏆",
+        APPLICATION_CONFIRMATION: "✅", OTHER: "📧",
+      };
+      await sendTelegramMessage(
+        user.telegramChatId,
+        `${emoji[type]} <b>${titles[type]}</b>\n<i>From:</i> ${from}\n<i>Subject:</i> ${subject}\n\n${summary}`,
+      );
+    }
+
     created++;
   }
 

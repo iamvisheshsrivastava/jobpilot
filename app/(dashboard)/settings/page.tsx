@@ -35,6 +35,8 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("api");
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string } | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; botConfigured: boolean; connectUrl: string | null } | null>(null);
+  const [telegramLoading, setTelegramLoading] = useState(false);
 
   // API keys
   const [provider, setProvider] = useState<LlmProvider>("OpenAI");
@@ -59,6 +61,10 @@ export default function SettingsPage() {
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d && setGmailStatus(d))
         .catch(() => {});
+      fetch("/api/telegram/status")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setTelegramStatus(d))
+        .catch(() => {});
     }
   }, [tab]);
 
@@ -78,6 +84,14 @@ export default function SettingsPage() {
       window.history.replaceState({}, "", "/settings");
     }
   }, []);
+
+  async function handleTelegramDisconnect() {
+    if (!confirm("Disconnect Telegram? You will stop receiving phone notifications.")) return;
+    setTelegramLoading(true);
+    await fetch("/api/telegram/status", { method: "DELETE" });
+    setTelegramStatus((s) => s ? { ...s, connected: false } : s);
+    setTelegramLoading(false);
+  }
 
   async function handleGmailDisconnect() {
     if (!confirm("Disconnect Gmail? Job alert notifications will stop.")) return;
@@ -369,6 +383,50 @@ export default function SettingsPage() {
 
             <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
               JobPilot only reads emails — it never sends, modifies, or deletes anything in your inbox.
+            </div>
+          </div>
+
+          {/* Telegram */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="font-semibold text-slate-800">Telegram Notifications</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Get instant phone notifications when you receive a rejection, interview invite, or job offer.
+              Free — uses Telegram (no SMS cost).
+            </p>
+
+            <div className="mt-5">
+              {!telegramStatus?.botConfigured ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  Telegram bot not yet configured by admin. Check back soon.
+                </div>
+              ) : telegramStatus?.connected ? (
+                <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <p className="text-sm font-medium text-green-800">✓ Telegram connected</p>
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    disabled={telegramLoading}
+                    onClick={handleTelegramDisconnect}
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    {telegramLoading ? "Disconnecting…" : "Disconnect"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm text-slate-600">Not connected</p>
+                    <Button
+                      type="button" size="sm"
+                      onClick={() => { if (telegramStatus?.connectUrl) window.open(telegramStatus.connectUrl, "_blank"); }}
+                    >
+                      Connect Telegram
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Clicking the button opens Telegram. Press <strong>Start</strong> in the bot chat — that links your account. You need the <strong>Telegram app</strong> installed on your phone.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
