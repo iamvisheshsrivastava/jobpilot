@@ -32,6 +32,8 @@ const BROKEN_MODELS: Record<string, string> = {
   'meta-llama/llama-3.1-8b-instruct:free': FREE_MODEL_FALLBACK,
   'meta-llama/llama-3.1-8b-instruct':   FREE_MODEL_FALLBACK,
   'openrouter:free':                     FREE_MODEL_FALLBACK,
+  'openrouter/free':                     FREE_MODEL_FALLBACK,
+  'free':                                FREE_MODEL_FALLBACK,
   'custom':                              FREE_MODEL_FALLBACK,
   'openai/gpt-3.5-turbo':               FREE_MODEL_FALLBACK,
 }
