@@ -23,7 +23,7 @@ Only output valid JSON, no other text.`
 
   const result = await callLlmWithSavedKey(user.id, systemPrompt, userPrompt, 1024)
   if (!result.ok) {
-    return NextResponse.json({ error: `LLM error: ${result.error}` }, { status: 502 })
+    return NextResponse.json({ error: `LLM error [uid:${user.id}]: ${result.error}` }, { status: 502 })
   }
 
   try {
