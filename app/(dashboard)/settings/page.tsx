@@ -24,7 +24,7 @@ import {
   saveApiKey,
 } from "@/lib/api";
 
-type Tab = "api" | "danger";
+type Tab = "api" | "integrations" | "danger";
 
 const CUSTOM_MODEL = "custom";
 
@@ -33,6 +33,8 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const isDemo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
   const [tab, setTab] = useState<Tab>("api");
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(false);
 
   // API keys
   const [provider, setProvider] = useState<LlmProvider>("OpenAI");
@@ -50,6 +52,40 @@ export default function SettingsPage() {
   const [dangerLoading, setDangerLoading] = useState(false);
   const [resetText, setResetText] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === "integrations") {
+      fetch("/api/gmail/status")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setGmailStatus(d))
+        .catch(() => {});
+    }
+  }, [tab]);
+
+  // Handle redirect from Gmail OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmail = params.get("gmail");
+    if (gmail) {
+      setTab("integrations");
+      if (gmail === "connected" || gmail === "denied" || gmail === "error") {
+        fetch("/api/gmail/status")
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => d && setGmailStatus(d))
+          .catch(() => {});
+      }
+      // Clean URL
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, []);
+
+  async function handleGmailDisconnect() {
+    if (!confirm("Disconnect Gmail? Job alert notifications will stop.")) return;
+    setGmailLoading(true);
+    await fetch("/api/gmail/disconnect", { method: "POST" });
+    setGmailStatus({ connected: false });
+    setGmailLoading(false);
+  }
 
   async function loadApiKeys() {
     try {
@@ -130,6 +166,7 @@ export default function SettingsPage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "api", label: "API Keys" },
+    { id: "integrations", label: "Integrations" },
     { id: "danger", label: "Danger Zone" },
   ];
 
@@ -289,80 +326,52 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Danger Zone tab ──────────────────────────────────────────── */}
-      {tab === "danger" && (
-        <div className="rounded-xl border border-red-200 bg-white p-5">
-          <h2 className="font-semibold text-red-700">Danger Zone</h2>
-          <p className="mt-0.5 text-sm text-slate-500">These actions are permanent and cannot be undone.</p>
+      {/* ── Integrations tab ─────────────────────────────────────────── */}
+      {tab === "integrations" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="font-semibold text-slate-800">Gmail Integration</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Connect your Gmail so JobPilot can scan for recruiter emails and interview invites and send you notifications.
+            </p>
 
-          {isDemo ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              Danger zone actions are disabled for the demo account.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <h3 className="font-medium text-slate-800">Delete All My Jobs</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Type <span className="font-mono font-semibold">DELETE</span> to remove all tracked jobs.
-                </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Input
-                    className="max-w-40"
-                    value={deleteJobsText}
-                    onChange={(e) => setDeleteJobsText(e.target.value)}
-                    placeholder="DELETE"
-                  />
+            <div className="mt-5">
+              {gmailStatus?.connected ? (
+                <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-green-800">✓ Connected</p>
+                    <p className="text-xs text-green-700 mt-0.5">{gmailStatus.email}</p>
+                  </div>
                   <Button
-                    type="button" variant="destructive"
-                    disabled={deleteJobsText !== "DELETE" || dangerLoading}
-                    onClick={handleDeleteAllJobs}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={gmailLoading}
+                    onClick={handleGmailDisconnect}
+                    className="border-red-200 text-red-600 hover:bg-red-50"
                   >
-                    {dangerLoading ? "Deleting…" : "Delete All Jobs"}
+                    {gmailLoading ? "Disconnecting…" : "Disconnect"}
                   </Button>
                 </div>
-              </div>
-
-              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <h3 className="font-medium text-slate-800">Reset Profile</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Deletes all tracked jobs, profile data, and saved API keys. Your account (email + password) is kept.
-                  Type <span className="font-mono font-semibold">RESET</span> to confirm.
-                </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Input
-                    className="max-w-40"
-                    value={resetText}
-                    onChange={(e) => setResetText(e.target.value)}
-                    placeholder="RESET"
-                  />
+              ) : (
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm text-slate-600">Not connected</p>
                   <Button
-                    type="button" variant="destructive"
-                    disabled={resetText !== "RESET" || resetLoading}
-                    onClick={handleResetProfile}
+                    type="button"
+                    size="sm"
+                    onClick={() => { window.location.href = "/api/gmail/connect"; }}
                   >
-                    {resetLoading ? "Resetting…" : "Reset Profile"}
+                    Connect Gmail
                   </Button>
                 </div>
-              </div>
-
-              <div className="rounded-lg border border-red-100 bg-red-50 p-4">
-                <h3 className="font-medium text-slate-800">Sign Out</h3>
-                <p className="mt-1 text-sm text-slate-500">Sign out of your account on this device.</p>
-                <div className="mt-3">
-                  <Button type="button" variant="outline" onClick={() => signOut({ callbackUrl: "/" })}>
-                    Sign Out
-                  </Button>
-                </div>
-              </div>
-
-              {dangerMessage && (
-                <p className="text-sm font-medium text-red-700">{dangerMessage}</p>
               )}
             </div>
-          )}
+
+            <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              JobPilot only reads emails — it never sends, modifies, or deletes anything in your inbox.
+            </div>
+          </div>
         </div>
       )}
-    </div>
-  );
-}
+
+      {/* ── Dange
