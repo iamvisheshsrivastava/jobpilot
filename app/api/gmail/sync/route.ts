@@ -138,7 +138,7 @@ async function syncUserGmail(userId: string): Promise<number> {
     ? Math.floor(gmailToken.lastSyncAt.getTime() / 1000)
     : Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
-  const query = `is:unread (job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
+  const query = `(job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
