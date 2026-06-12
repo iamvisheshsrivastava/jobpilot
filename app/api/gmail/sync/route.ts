@@ -26,6 +26,10 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
       refresh_token: refreshToken,
       grant_type: "refresh_token",
+      // Downscope: older tokens were granted gmail.metadata, which makes the
+      // Gmail API reject the 'q' search parameter (403). Requesting only the
+      // scopes we need strips gmail.metadata from the new access token.
+      scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email",
     }),
   });
   const data = await res.json();
@@ -38,9 +42,9 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
 
 async function getValidAccessToken(gmailToken: {
   accessToken: string; refreshToken: string; expiresAt: Date; id: string
-}): Promise<string> {
+}, forceRefresh = false): Promise<string> {
   // Refresh if expires within 5 minutes
-  if (new Date(gmailToken.expiresAt).getTime() - Date.now() < 5 * 60 * 1000) {
+  if (forceRefresh || new Date(gmailToken.expiresAt).getTime() - Date.now() < 5 * 60 * 1000) {
     const refreshed = await refreshAccessToken(gmailToken.refreshToken);
     await prisma.gmailToken.update({
       where: { id: gmailToken.id },
@@ -157,11 +161,30 @@ async function syncUserGmail(userId: string): Promise<SyncResult> {
   const query = `(job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
   debug.gmailQuery = query;
 
-  const listRes = await fetch(
+  let listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  const listData = await listRes.json();
+  let listData = await listRes.json();
+
+  // A still-valid access token issued before the downscoping fix may carry
+  // gmail.metadata, which rejects 'q'. Force one refresh (which downscopes)
+  // and retry.
+  if (listRes.status === 403 && JSON.stringify(listData).includes("Metadata scope")) {
+    debug.metadataScopeRetry = true;
+    try {
+      accessToken = await getValidAccessToken(gmailToken, true);
+    } catch (e) {
+      debug.error = `Token refresh failed on metadata-scope retry: ${e instanceof Error ? e.message : String(e)}`;
+      return { created: 0, debug };
+    }
+    listRes = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    listData = await listRes.json();
+  }
+
   if (!listRes.ok) {
     debug.error = `Gmail API error ${listRes.status}: ${JSON.stringify(listData)}`;
     return { created: 0, debug };

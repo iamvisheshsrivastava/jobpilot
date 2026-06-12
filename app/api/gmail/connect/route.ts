@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 const SCOPES = [
+  // NOTE: gmail.metadata must NOT be requested — when present, the Gmail API
+  // rejects the 'q' search parameter and format=full with 403, breaking sync.
   "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.metadata",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
