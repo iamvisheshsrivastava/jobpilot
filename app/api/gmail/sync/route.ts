@@ -118,14 +118,29 @@ Body (first 800 chars): ${body.slice(0, 800)}`;
 
 // ── Main sync function for one user ──────────────────────────────────────────
 
-async function syncUserGmail(userId: string): Promise<number> {
+interface SyncResult { created: number; debug: Record<string, unknown> }
+
+async function syncUserGmail(userId: string): Promise<SyncResult> {
+  const debug: Record<string, unknown> = {};
+
   const [gmailToken, user] = await Promise.all([
     prisma.gmailToken.findUnique({ where: { userId } }),
     prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true } }),
   ]);
-  if (!gmailToken) return 0;
+  if (!gmailToken) { debug.error = "No Gmail token found for user"; return { created: 0, debug }; }
 
-  const accessToken = await getValidAccessToken(gmailToken);
+  debug.tokenEmail = (gmailToken as Record<string, unknown>).email ?? "unknown";
+  debug.tokenExpiry = gmailToken.expiresAt;
+  debug.lastSyncAt = gmailToken.lastSyncAt;
+
+  let accessToken: string;
+  try {
+    accessToken = await getValidAccessToken(gmailToken);
+    debug.tokenRefreshed = new Date(gmailToken.expiresAt).getTime() - Date.now() < 5 * 60 * 1000;
+  } catch (e) {
+    debug.error = `Token refresh failed: ${e instanceof Error ? e.message : String(e)}`;
+    return { created: 0, debug };
+  }
 
   // Fetch LLM key for this user
   const keyRec = await prisma.apiKey.findFirst({
@@ -140,13 +155,19 @@ async function syncUserGmail(userId: string): Promise<number> {
     : Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
   const query = `(job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
+  debug.gmailQuery = query;
+
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  if (!listRes.ok) return 0;
   const listData = await listRes.json();
+  if (!listRes.ok) {
+    debug.error = `Gmail API error ${listRes.status}: ${JSON.stringify(listData)}`;
+    return { created: 0, debug };
+  }
   const messages: GmailMessage[] = listData.messages ?? [];
+  debug.messagesFound = messages.length;
 
   let created = 0;
   const OPENAI_URLS: Record<string, string> = {
@@ -248,7 +269,7 @@ async function syncUserGmail(userId: string): Promise<number> {
     data: { lastSyncAt: new Date() },
   });
 
-  return created;
+  return { created, debug };
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -263,7 +284,7 @@ export async function POST(req: Request) {
     const tokens = await prisma.gmailToken.findMany({ select: { userId: true } });
     let total = 0;
     for (const { userId } of tokens) {
-      try { total += await syncUserGmail(userId); } catch { /* per-user errors don't abort others */ }
+      try { total += (await syncUserGmail(userId)).created; } catch { /* per-user errors don't abort others */ }
     }
     return NextResponse.json({ ok: true, synced: tokens.length, notifications: total });
   }
@@ -273,8 +294,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const count = await syncUserGmail(user.id);
-    return NextResponse.json({ ok: true, notifications: count });
+    const { created, debug } = await syncUserGmail(user.id);
+    return NextResponse.json({ ok: true, notifications: created, debug });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
