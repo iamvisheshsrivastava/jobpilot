@@ -6,13 +6,18 @@ export async function GET(req: Request) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { telegramChatId: true },
+  });
+
   const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? "";
   const connectUrl = botUsername
     ? `https://t.me/${botUsername}?start=${user.id}`
     : null;
 
   return NextResponse.json({
-    connected: !!user.telegramChatId,
+    connected: !!dbUser?.telegramChatId,
     botConfigured: !!botUsername,
     connectUrl,
   });
