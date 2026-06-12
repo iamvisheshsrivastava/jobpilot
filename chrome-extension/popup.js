@@ -317,24 +317,61 @@ function fallbackCapture(tab) {
   )
 }
 
+// ── Auto-capture helper (used by Fit + Skills if not yet captured) ─────────────
+
+function autoCaptureAndRun(callback) {
+  if (capturedPageText) { callback(capturedPageText); return }
+
+  showMsg(saveStatus, 'Reading page…', 'processing')
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs?.[0]
+    if (!tab) { showMsg(saveStatus, 'Could not access tab', 'error'); return }
+
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB' }, (resp) => {
+      if (!chrome.runtime.lastError && resp?.ok && resp.data?.jobDescription) {
+        capturedPageText = resp.data.jobDescription
+        if (!jobTitle.value) jobTitle.value = resp.data.jobTitle || ''
+        if (!jobCompany.value) jobCompany.value = resp.data.company || ''
+        if (!jobDeadline.value) jobDeadline.value = resp.data.deadline || ''
+        if (!jobDescription.value) jobDescription.value = resp.data.jobDescription || ''
+        extractedBox.className = 'extracted-box show'
+        saveBtn.disabled = false
+        callback(capturedPageText)
+        return
+      }
+      chrome.scripting.executeScript(
+        { target: { tabId: tab.id, allFrames: true }, func: extractJobPostingText, args: [10000] },
+        (results) => {
+          if (chrome.runtime.lastError) { showMsg(saveStatus, 'Cannot read this page', 'error'); return }
+          const frames = (results || []).map(r => r?.result).filter(r => r?.text).sort((a, b) => (b.score || 0) - (a.score || 0))
+          const text = frames[0]?.text || ''
+          if (!text) { showMsg(saveStatus, 'No job text found on this page', 'error'); return }
+          capturedPageText = text
+          if (!jobDescription.value) jobDescription.value = text
+          extractedBox.className = 'extracted-box show'
+          saveBtn.disabled = false
+          callback(capturedPageText)
+        }
+      )
+    })
+  })
+}
+
 // ── Suitability ───────────────────────────────────────────────────────────────
 
 suitBtn.addEventListener('click', () => {
-  if (!capturedPageText) {
-    showMsg(saveStatus, 'Capture the job first before checking fit', 'error')
-    return
-  }
   suitBtn.disabled = true
-  showMsg(saveStatus, 'Analysing job fit\u2026', 'processing')
-
-  chrome.runtime.sendMessage({ type: 'CHECK_SUITABILITY', payload: { pageText: capturedPageText } }, (resp) => {
-    suitBtn.disabled = false
-    hideMsg(saveStatus)
-    if (chrome.runtime.lastError || !resp?.ok) {
-      showMsg(saveStatus, resp?.error || 'Suitability check failed', 'error')
-      return
-    }
-    showVerdict(resp.data?.verdict, resp.data?.reason ?? resp.data?.recommendation)
+  autoCaptureAndRun((pageText) => {
+    showMsg(saveStatus, 'Analysing job fit…', 'processing')
+    chrome.runtime.sendMessage({ type: 'CHECK_SUITABILITY', payload: { pageText } }, (resp) => {
+      suitBtn.disabled = false
+      hideMsg(saveStatus)
+      if (chrome.runtime.lastError || !resp?.ok) {
+        showMsg(saveStatus, resp?.error || 'Suitability check failed', 'error')
+        return
+      }
+      showVerdict(resp.data?.verdict, resp.data?.reason ?? resp.data?.recommendation)
+    })
   })
 })
 
@@ -517,14 +554,11 @@ const skillChips = document.getElementById('skillChips')
 const skillSummaryText = document.getElementById('skillSummaryText')
 
 skillBtn.addEventListener('click', () => {
-  if (!capturedPageText) {
-    showMsg(saveStatus, 'Capture the job first before checking skills', 'error')
-    return
-  }
   skillBtn.disabled = true
+  autoCaptureAndRun((pageText) => {
   showMsg(saveStatus, 'Analyzing skills\u2026', 'processing')
 
-  chrome.runtime.sendMessage({ type: 'CHECK_SKILLS', payload: { pageText: capturedPageText } }, (resp) => {
+  chrome.runtime.sendMessage({ type: 'CHECK_SKILLS', payload: { pageText } }, (resp) => {
     skillBtn.disabled = false
     hideMsg(saveStatus)
     if (chrome.runtime.lastError || !resp?.ok) {
@@ -577,6 +611,7 @@ skillBtn.addEventListener('click', () => {
       skillSummaryText.textContent = ''
     }
   })
+  }) // end autoCaptureAndRun
 })
 
 // ── Init ──────────────────────────────────────────────────────────────────────
