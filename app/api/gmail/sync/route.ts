@@ -134,8 +134,9 @@ async function syncUserGmail(userId: string): Promise<number> {
   });
 
   // Only query emails since last sync (or last 24h if first sync)
+  // Subtract 10-minute overlap so emails arriving just before last sync aren't missed
   const after = gmailToken.lastSyncAt
-    ? Math.floor(gmailToken.lastSyncAt.getTime() / 1000)
+    ? Math.floor((gmailToken.lastSyncAt.getTime() - 10 * 60 * 1000) / 1000)
     : Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
   const query = `(job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
