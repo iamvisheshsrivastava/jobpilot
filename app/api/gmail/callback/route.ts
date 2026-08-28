@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "https://jobpilot-lime.vercel.app";
 
 function redirectSettings(status: string) {
-  return NextResponse.redirect(`${BASE_URL}/settings?gmail=${status}`);
+  const cookieStore = cookies();
+  const page = cookieStore.get("gmail_oauth_return")?.value === "inbox" ? "inbox" : "settings";
+  cookieStore.delete("gmail_oauth_return");
+  return NextResponse.redirect(`${BASE_URL}/${page}?gmail=${status}`);
 }
 
 export async function GET(req: Request) {
@@ -16,16 +21,22 @@ export async function GET(req: Request) {
   if (error) return redirectSettings("denied");
   if (!code || !state) return redirectSettings("error");
 
-  // Decode state to get userId
-  let userId: string;
-  try {
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
-    userId = decoded.userId;
-    if (!userId) throw new Error("no userId in state");
-  } catch (e) {
-    console.error("[gmail/callback] state decode failed:", e);
+  // Verify the CSRF nonce set by /api/gmail/connect, then take the userId
+  // from the current session - never from the state param, which isn't a
+  // secret and shouldn't be trusted to identify who's connecting.
+  const cookieStore = cookies();
+  const expectedState = cookieStore.get("gmail_oauth_state")?.value;
+  cookieStore.delete("gmail_oauth_state");
+  if (!expectedState || state !== expectedState) {
+    console.error("[gmail/callback] state mismatch or missing cookie");
     return redirectSettings("error");
   }
+
+  const session = await auth();
+  if (!session?.user?.id) {
+    return redirectSettings("error");
+  }
+  const userId = session.user.id;
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;

@@ -10,6 +10,7 @@
  *   CRON_SECRET                            — protects the cron endpoint
  */
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { getUser } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
@@ -161,36 +162,56 @@ async function syncUserGmail(userId: string): Promise<SyncResult> {
   const query = `(job OR application OR interview OR offer OR rejection OR position OR opportunity OR hiring OR recruiter) after:${after}`;
   debug.gmailQuery = query;
 
-  let listRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  let listData = await listRes.json();
+  // Page through all matching messages instead of stopping at 20 - on an
+  // active inbox that silently dropped every email past the first page, and
+  // because lastSyncAt still advanced afterwards, the overflow was gone for
+  // good (fell outside next run's `after:` window). Cap total pages fetched
+  // so one user's huge inbox can't make a cron run hang.
+  const MAX_MESSAGES_PER_RUN = 200;
+  const messages: GmailMessage[] = [];
+  let pageToken: string | undefined;
+  let truncated = false;
 
-  // A still-valid access token issued before the downscoping fix may carry
-  // gmail.metadata, which rejects 'q'. Force one refresh (which downscopes)
-  // and retry.
-  if (listRes.status === 403 && JSON.stringify(listData).includes("Metadata scope")) {
-    debug.metadataScopeRetry = true;
-    try {
-      accessToken = await getValidAccessToken(gmailToken, true);
-    } catch (e) {
-      debug.error = `Token refresh failed on metadata-scope retry: ${e instanceof Error ? e.message : String(e)}`;
+  do {
+    const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+    url.searchParams.set("maxResults", "100");
+    url.searchParams.set("q", query);
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    let listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    let listData = await listRes.json();
+
+    // A still-valid access token issued before the downscoping fix may carry
+    // gmail.metadata, which rejects 'q'. Force one refresh (which downscopes)
+    // and retry. Only needs to happen once, on the first page.
+    if (!pageToken && listRes.status === 403 && JSON.stringify(listData).includes("Metadata scope")) {
+      debug.metadataScopeRetry = true;
+      try {
+        accessToken = await getValidAccessToken(gmailToken, true);
+      } catch (e) {
+        debug.error = `Token refresh failed on metadata-scope retry: ${e instanceof Error ? e.message : String(e)}`;
+        return { created: 0, debug };
+      }
+      listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      listData = await listRes.json();
+    }
+
+    if (!listRes.ok) {
+      debug.error = `Gmail API error ${listRes.status}: ${JSON.stringify(listData)}`;
       return { created: 0, debug };
     }
-    listRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(query)}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    listData = await listRes.json();
-  }
 
-  if (!listRes.ok) {
-    debug.error = `Gmail API error ${listRes.status}: ${JSON.stringify(listData)}`;
-    return { created: 0, debug };
-  }
-  const messages: GmailMessage[] = listData.messages ?? [];
+    messages.push(...(listData.messages ?? []));
+    pageToken = listData.nextPageToken;
+
+    if (messages.length >= MAX_MESSAGES_PER_RUN) {
+      truncated = !!pageToken;
+      break;
+    }
+  } while (pageToken);
+
   debug.messagesFound = messages.length;
+  debug.truncated = truncated;
 
   let created = 0;
   const OPENAI_URLS: Record<string, string> = {
@@ -286,23 +307,37 @@ async function syncUserGmail(userId: string): Promise<SyncResult> {
     created++;
   }
 
-  // Update lastSyncAt
-  await prisma.gmailToken.update({
-    where: { userId },
-    data: { lastSyncAt: new Date() },
-  });
+  // Only advance lastSyncAt when this run actually drained the query - if we
+  // hit MAX_MESSAGES_PER_RUN with more pages left, advancing it would permanently
+  // skip whatever we didn't get to. Leaving it unchanged means next run
+  // re-covers the same window; already-processed messages are deduped above
+  // via the gmailMsgId lookup, so this is safe to retry.
+  if (!truncated) {
+    await prisma.gmailToken.update({
+      where: { userId },
+      data: { lastSyncAt: new Date() },
+    });
+  }
 
   return { created, debug };
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization") ?? "";
+function isCronRequest(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return false; // fail closed when unset, rather than accepting "Bearer undefined"
 
+  const authHeader = req.headers.get("authorization") ?? "";
+  const expected = `Bearer ${cronSecret}`;
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export async function POST(req: Request) {
   // Allow cron calls with CRON_SECRET
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  if (isCronRequest(req)) {
     // Sync ALL users with Gmail connected
     const tokens = await prisma.gmailToken.findMany({ select: { userId: true } });
     let total = 0;
@@ -318,10 +353,18 @@ export async function POST(req: Request) {
 
   try {
     const { created, debug } = await syncUserGmail(user.id);
-    return NextResponse.json({ ok: true, notifications: created, debug });
+    // The debug object carries internal details (token email, exact Gmail
+    // search query, raw upstream error bodies) - useful while developing,
+    // not something to hand to the browser in production.
+    if (process.env.NODE_ENV !== "production") {
+      return NextResponse.json({ ok: true, notifications: created, debug });
+    }
+    console.log("[gmail/sync] debug:", debug);
+    return NextResponse.json({ ok: true, notifications: created });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[gmail/sync] error:", msg);
+    return NextResponse.json({ error: "Sync failed. Please try again." }, { status: 500 });
   }
 }
 

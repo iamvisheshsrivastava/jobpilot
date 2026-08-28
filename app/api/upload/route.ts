@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { auth } from '@/lib/auth'
 import { r2Client, R2_BUCKET } from '@/lib/r2'
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   // Generate a signed URL valid for 7 days (read-only, for preview/download)
   const signedUrl = await getSignedUrl(
     r2Client,
-    new PutObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+    new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
     { expiresIn: 60 * 60 * 24 * 7 },
   )
 

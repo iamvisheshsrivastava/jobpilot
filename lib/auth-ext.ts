@@ -14,7 +14,9 @@ export async function verifyExtToken(token: string): Promise<{ id: string; email
 
     const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET!
     const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
-    if (expected !== sig) return null
+    const a = Buffer.from(expected)
+    const b = Buffer.from(sig)
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
 
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
     if (data.exp < Date.now()) return null

@@ -1,13 +1,30 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 
 /**
  * POST /api/telegram/webhook
- * Telegram sends updates here. We look for /start <userId> messages
+ * Telegram sends updates here. We look for /start <linkToken> messages
  * and save the chat_id to the user's record.
  */
 export async function POST(req: Request) {
   try {
+    // Telegram signs webhook requests with the secret_token configured via
+    // setWebhook - without checking it, anyone on the internet can POST a
+    // forged update here. Fail closed if the secret isn't configured.
+    const configuredSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (!configuredSecret) {
+      console.error("[telegram/webhook] TELEGRAM_WEBHOOK_SECRET is not set - rejecting request");
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+    const providedSecret = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+    const a = Buffer.from(providedSecret);
+    const b = Buffer.from(configuredSecret);
+    const secretMatches = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!secretMatches) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
     const update = await req.json() as {
       message?: {
         chat: { id: number };
@@ -22,7 +39,8 @@ export async function POST(req: Request) {
     const chatId = String(message.chat.id);
     const text = message.text?.trim() ?? "";
 
-    // Expect /start <userId>
+    // Expect /start <linkToken> (a single-use token minted by
+    // GET /api/telegram/status, not the raw userId)
     const match = text.match(/^\/start\s+(.+)$/);
     if (!match) {
       // Send generic reply
@@ -30,12 +48,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const userId = match[1].trim();
+    const linkToken = match[1].trim();
 
-    // Save chat_id to user
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { telegramChatId: chatId },
+    const record = await prisma.telegramLinkToken.findUnique({ where: { token: linkToken } });
+
+    if (!record || record.usedAt || record.expiresAt.getTime() <= Date.now()) {
+      await sendReply(chatId, "❌ This connect link is invalid or has expired. Please generate a new one from JobPilot Settings.");
+      return NextResponse.json({ ok: true });
+    }
+
+    // Save chat_id to user and burn the token in one go
+    const user = await prisma.$transaction(async (tx) => {
+      await tx.telegramLinkToken.update({
+        where: { token: linkToken },
+        data: { usedAt: new Date() },
+      });
+      return tx.user.update({
+        where: { id: record.userId },
+        data: { telegramChatId: chatId },
+      });
     }).catch(() => null);
 
     if (!user) {

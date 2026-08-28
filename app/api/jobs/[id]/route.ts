@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
+import { isValidStatus, isValidPriority, isSafeUrl } from '@/lib/validation'
 
 type JobStatus = string
 type JobPriority = string
@@ -62,6 +63,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const dbStatus = status ? normalizeStatus(status) : undefined
   const dbPriority = priority ? normalizePriority(priority) : undefined
+
+  if (dbStatus && !isValidStatus(dbStatus)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  if (dbPriority && !isValidPriority(dbPriority)) return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
+  if (link?.trim() && !isSafeUrl(link.trim())) return NextResponse.json({ error: 'Link must be a valid http(s) URL' }, { status: 400 })
+  if (recruiterLinkedIn?.trim() && !isSafeUrl(recruiterLinkedIn.trim())) {
+    return NextResponse.json({ error: 'Recruiter LinkedIn must be a valid http(s) URL' }, { status: 400 })
+  }
 
   const historyEntries: { fieldChanged: string; oldValue: string | null; newValue: string }[] = []
   if (dbStatus && dbStatus !== job.status) historyEntries.push({ fieldChanged: 'status', oldValue: job.status, newValue: dbStatus })

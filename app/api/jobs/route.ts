@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
+import { isValidStatus, isValidPriority, isSafeUrl, parsePositiveInt } from '@/lib/validation'
 
 type JobStatus = string
 type JobPriority = string
@@ -15,8 +16,12 @@ export async function GET(req: Request) {
   const categoryId = searchParams.get('categoryId')
   const status = searchParams.get('status') as JobStatus | null
   const search = searchParams.get('search') || ''
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-  const limit = Math.min(100, parseInt(searchParams.get('limit') || '10'))
+  const page = parsePositiveInt(searchParams.get('page'), 1)
+  const limit = parsePositiveInt(searchParams.get('limit'), 10, 100)
+
+  if (status && !isValidStatus(status)) {
+    return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 })
+  }
 
   if (categoryId) {
     const cat = await prisma.category.findFirst({ where: { id: categoryId, userId: user.id } })
@@ -57,6 +62,9 @@ export async function POST(req: Request) {
 
   if (!title?.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   if (!categoryId) return NextResponse.json({ error: 'Category is required' }, { status: 400 })
+  if (status && !isValidStatus(status)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  if (priority && !isValidPriority(priority)) return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
+  if (link?.trim() && !isSafeUrl(link.trim())) return NextResponse.json({ error: 'Link must be a valid http(s) URL' }, { status: 400 })
 
   const cat = await prisma.category.findFirst({ where: { id: categoryId, userId: user.id } })
   if (!cat) return NextResponse.json({ error: 'Category not found' }, { status: 404 })

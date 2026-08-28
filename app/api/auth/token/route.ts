@@ -28,7 +28,11 @@ export async function POST(req: Request) {
       exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
     })).toString('base64url')
 
-    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || ''
+    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+    if (!secret) {
+      console.error('[auth/token] AUTH_SECRET/NEXTAUTH_SECRET is not set')
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
     const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
     const token = `${payload}.${sig}`
 

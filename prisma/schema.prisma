@@ -36,6 +36,17 @@ model User {
   @@map("users")
 }
 
+model TelegramLinkToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String    @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("telegram_link_tokens")
+}
+
 model UserProfile {
   id             String   @id @default(cuid())
   userId         String   @unique @map("user_id")

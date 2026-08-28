@@ -94,7 +94,7 @@ export default function InboxPage() {
     } catch {
       // If check endpoint doesn't exist, just proceed with redirect
     }
-    window.location.href = "/api/auth/gmail";
+    window.location.href = "/api/gmail/connect?next=inbox";
   }
 
   async function handleDisconnect() {

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 
 const SCOPES = [
@@ -21,8 +23,29 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Google OAuth not configured" }, { status: 500 });
   }
 
-  // Encode userId in state for CSRF protection
-  const state = Buffer.from(JSON.stringify({ userId: session.user.id })).toString("base64url");
+  // Random, unguessable CSRF nonce - the callback verifies it against the
+  // httpOnly cookie set below and takes the userId from the session, not
+  // from the state param itself (cuid()s aren't secret, so embedding the
+  // userId in state gave no real CSRF protection).
+  const state = crypto.randomBytes(24).toString("base64url");
+  cookies().set("gmail_oauth_state", state, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 10 * 60,
+    path: "/",
+  });
+
+  // Remember which page to bounce back to (settings vs inbox both have their
+  // own "gmail=connected" status handling) - defaults to settings.
+  const next = new URL(req.url).searchParams.get("next") === "inbox" ? "inbox" : "settings";
+  cookies().set("gmail_oauth_return", next, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 10 * 60,
+    path: "/",
+  });
 
   const params = new URLSearchParams({
     client_id: clientId,
