@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { getUser } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, encrypt, safeDecrypt } from "@/lib/crypto";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,14 +46,14 @@ async function getValidAccessToken(gmailToken: {
 }, forceRefresh = false): Promise<string> {
   // Refresh if expires within 5 minutes
   if (forceRefresh || new Date(gmailToken.expiresAt).getTime() - Date.now() < 5 * 60 * 1000) {
-    const refreshed = await refreshAccessToken(gmailToken.refreshToken);
+    const refreshed = await refreshAccessToken(safeDecrypt(gmailToken.refreshToken));
     await prisma.gmailToken.update({
       where: { id: gmailToken.id },
-      data: { accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt },
+      data: { accessToken: encrypt(refreshed.accessToken), expiresAt: refreshed.expiresAt },
     });
     return refreshed.accessToken;
   }
-  return gmailToken.accessToken;
+  return safeDecrypt(gmailToken.accessToken);
 }
 
 interface GmailMessage { id: string; threadId: string }

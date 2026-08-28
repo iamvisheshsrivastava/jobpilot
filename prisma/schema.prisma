@@ -171,8 +171,11 @@ model GmailToken {
   id           String    @id @default(cuid())
   userId       String    @unique @map("user_id")
   email        String
-  accessToken  String    @map("access_token")
-  refreshToken String    @map("refresh_token")
+  // Encrypted at rest with lib/crypto.ts (same AES-256-GCM helper already
+  // used for user LLM API keys) - a refresh token grants long-lived inbox
+  // access, so it shouldn't sit in the DB in plaintext.
+  accessToken  String    @map("encrypted_access_token")
+  refreshToken String    @map("encrypted_refresh_token")
   expiresAt    DateTime  @map("expires_at")
   lastSyncAt   DateTime? @map("last_sync_at")
   createdAt    DateTime  @default(now()) @map("created_at")

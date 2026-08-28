@@ -32,6 +32,20 @@ export function decrypt(ciphertext: string): string {
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8')
 }
 
+/** decrypt(), but treats a value that isn't in our ciphertext format as
+ * legacy plaintext instead of throwing - lets a column move from plaintext
+ * to encrypted without a one-shot data migration; each row upgrades itself
+ * the next time it's written. */
+export function safeDecrypt(value: string): string {
+  const looksEncrypted = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]*$/i.test(value)
+  if (!looksEncrypted) return value
+  try {
+    return decrypt(value)
+  } catch {
+    return value
+  }
+}
+
 export function maskKey(key: string): string {
   if (key.length <= 8) return '****'
   return key.slice(0, 4) + '****' + key.slice(-4)

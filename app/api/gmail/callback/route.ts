@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { encrypt } from "@/lib/crypto";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "https://jobpilot-lime.vercel.app";
 
@@ -90,20 +91,20 @@ export async function GET(req: Request) {
     const email = userInfo.email;
     const expiresAt = new Date(Date.now() + (expires_in ?? 3600) * 1000);
 
-    // Save tokens to DB
+    // Save tokens to DB (encrypted at rest - see lib/crypto.ts)
     await prisma.gmailToken.upsert({
       where: { userId },
       create: {
         userId,
         email,
-        accessToken: access_token,
-        refreshToken: refresh_token ?? "",
+        accessToken: encrypt(access_token),
+        refreshToken: encrypt(refresh_token ?? ""),
         expiresAt,
       },
       update: {
         email,
-        accessToken: access_token,
-        ...(refresh_token ? { refreshToken: refresh_token } : {}),
+        accessToken: encrypt(access_token),
+        ...(refresh_token ? { refreshToken: encrypt(refresh_token) } : {}),
         expiresAt,
       },
     });
