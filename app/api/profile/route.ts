@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 
+const DEMO_EMAIL = 'demo@jobpilot.app'
+
 export async function GET(req: Request) {
   const user = await getUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -12,6 +14,7 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   const user = await getUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
   const body = await req.json()
   const data: Record<string, unknown> = {}
   if (body.summary !== undefined) data.summary = body.summary

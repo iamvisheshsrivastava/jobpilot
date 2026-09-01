@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 
+const DEMO_EMAIL = "demo@jobpilot.app";
+
 export async function POST(req: Request) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: "Demo account is read-only" }, { status: 403 });
 
   try {
     // Delete all jobs via their categories (Job.categoryId → Category.userId)

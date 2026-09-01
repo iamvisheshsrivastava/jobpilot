@@ -61,6 +61,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!cat) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
   }
 
+  if (resumeVersionId) {
+    const rv = await prisma.resumeVersion.findFirst({ where: { id: resumeVersionId, userId: user.id } })
+    if (!rv) return NextResponse.json({ error: 'Resume version not found' }, { status: 404 })
+  }
+
   const dbStatus = status ? normalizeStatus(status) : undefined
   const dbPriority = priority ? normalizePriority(priority) : undefined
 

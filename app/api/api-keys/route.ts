@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { encrypt, maskKey } from '@/lib/crypto'
+import { encrypt, decrypt, maskKey } from '@/lib/crypto'
 
 const VALID_PROVIDERS = ['GROQ', 'OPENROUTER', 'OPENAI', 'ANTHROPIC', 'GEMINI'] as const
+const DEMO_EMAIL = 'demo@jobpilot.app'
 
 export async function GET() {
   const session = await auth()
@@ -14,14 +15,23 @@ export async function GET() {
     select: { id: true, provider: true, modelName: true, encryptedKey: true, updatedAt: true },
   })
 
-  // Return masked keys — never the raw encrypted value
-  const masked = keys.map((k) => ({
-    id: k.id,
-    provider: k.provider,
-    modelName: k.modelName,
-    maskedKey: maskKey(k.encryptedKey.split(':')[2] || '****'),
-    updatedAt: k.updatedAt,
-  }))
+  // Return masked keys — never the raw encrypted value. Mask the actual
+  // plaintext key (decrypted server-side), not the AES-GCM ciphertext bytes.
+  const masked = keys.map((k) => {
+    let plaintext = ''
+    try {
+      plaintext = decrypt(k.encryptedKey)
+    } catch {
+      plaintext = ''
+    }
+    return {
+      id: k.id,
+      provider: k.provider,
+      modelName: k.modelName,
+      maskedKey: maskKey(plaintext || '****'),
+      updatedAt: k.updatedAt,
+    }
+  })
 
   return NextResponse.json(masked)
 }
@@ -29,6 +39,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const body = await req.json()
   const { key, modelName } = body

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getUser } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 
@@ -24,8 +24,8 @@ const MODEL_DEFAULTS: Record<string, string> = {
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const user = await getUser(req)
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
   // Fetch user profile from DB
   const profile = await prisma.userProfile.findUnique({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
   })
 
   // Parse user's skills — could be JSON array or comma-separated string
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
   // Fetch the most recently updated API key
   const keys = await prisma.apiKey.findMany({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
     orderBy: { updatedAt: 'desc' },
     take: 1,
     select: { id: true, provider: true, encryptedKey: true, modelName: true },

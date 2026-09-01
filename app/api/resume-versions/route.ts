@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isSafeUrl } from '@/lib/validation'
+
+const DEMO_EMAIL = 'demo@jobpilot.app'
+
+function isValidFileUrl(value: string): boolean {
+  return value.startsWith('data:') || value.startsWith('r2://') || isSafeUrl(value)
+}
 
 export async function GET() {
   const session = await auth()
@@ -44,10 +51,16 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  if (session.user.email === DEMO_EMAIL) {
+    return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+  }
 
   const { name, notes, fileUrl } = await req.json()
   if (!name?.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  }
+  if (fileUrl?.trim() && !isValidFileUrl(fileUrl.trim())) {
+    return NextResponse.json({ error: 'File URL must be a valid http(s) URL' }, { status: 400 })
   }
 
   const version = await prisma.resumeVersion.create({
