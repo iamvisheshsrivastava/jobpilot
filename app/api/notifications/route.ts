@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth-ext";
+import { getUser, isDemoAccount } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/notifications — list notifications for user
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoAccount(user.email)) return NextResponse.json({ error: "Demo account is read-only" }, { status: 403 });
 
   await prisma.notification.updateMany({ where: { userId: user.id, read: false }, data: { read: true } });
   return NextResponse.json({ ok: true });

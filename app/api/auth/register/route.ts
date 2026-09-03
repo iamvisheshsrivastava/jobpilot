@@ -1,13 +1,35 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+
+// 10 attempts per 15 minutes per IP — see lib/rate-limit.ts for caveats.
+const RATE_LIMIT = 10
+const RATE_WINDOW_MS = 15 * 60 * 1000
+
+// RFC-5322-ish "good enough" email check — not exhaustive, just enough to
+// reject obviously malformed input before it hits the DB.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req)
+    const { allowed, retryAfterSeconds } = checkRateLimit(`register:${ip}`, RATE_LIMIT, RATE_WINDOW_MS)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } },
+      )
+    }
+
     const { email, password, name } = await req.json()
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+    }
+
+    if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+      return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 })
     }
 
     if (password.length < 8) {

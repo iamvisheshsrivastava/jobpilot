@@ -1,6 +1,14 @@
 import crypto from 'crypto'
 import { auth } from './auth'
 
+// Shared public demo account guard — see issue #9. Individual routes also
+// define their own local DEMO_EMAIL const for historical reasons; new
+// mutating routes should prefer this shared helper instead.
+export const DEMO_EMAIL = 'demo@jobpilot.app'
+export function isDemoAccount(email?: string | null): boolean {
+  return email === DEMO_EMAIL
+}
+
 // Validate required env vars at module load time — never silently use an empty key
 if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
   throw new Error('AUTH_SECRET env var is not set')

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { getUser } from "@/lib/auth-ext";
+import { getUser, isDemoAccount } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 
 const LINK_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -42,6 +42,7 @@ export async function GET(req: Request) {
 export async function DELETE(req: Request) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoAccount(user.email)) return NextResponse.json({ error: "Demo account is read-only" }, { status: 403 });
 
   await prisma.user.update({
     where: { id: user.id },

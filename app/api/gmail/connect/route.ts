@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
+import { isDemoAccount } from "@/lib/auth-ext";
 
 const SCOPES = [
   // NOTE: gmail.metadata must NOT be requested — when present, the Gmail API
@@ -14,6 +15,9 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (isDemoAccount(session.user.email)) {
+    return NextResponse.json({ error: "Demo account is read-only" }, { status: 403 });
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;

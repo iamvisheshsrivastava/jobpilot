@@ -2,9 +2,23 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+
+// 10 attempts per 15 minutes per IP — see lib/rate-limit.ts for caveats.
+const RATE_LIMIT = 10
+const RATE_WINDOW_MS = 15 * 60 * 1000
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req)
+    const { allowed, retryAfterSeconds } = checkRateLimit(`auth-token:${ip}`, RATE_LIMIT, RATE_WINDOW_MS)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } },
+      )
+    }
+
     const { email, password } = await req.json()
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 })

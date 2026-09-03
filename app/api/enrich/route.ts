@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUser } from '@/lib/auth-ext'
+import { getUser, isDemoAccount } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 import { callLlmWithSavedKey } from '@/lib/llm-server'
@@ -9,6 +9,9 @@ import { callLlmWithSavedKey } from '@/lib/llm-server'
 export async function POST(req: Request) {
   const user = await getUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Defense in depth: cost/abuse concern only if a shared key is ever added
+  // to the demo account, but cheap to guard.
+  if (isDemoAccount(user.email)) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const { pageText } = await req.json()
   if (!pageText?.trim()) {

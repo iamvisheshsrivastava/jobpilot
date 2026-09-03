@@ -1,0 +1,30 @@
+name: Security audit
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+    branches: [main, testing]
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Report-only: surfaces high/critical advisories in the job log without
+      # turning unrelated pushes/PRs red. The repo currently has a few
+      # pre-existing high/critical findings with no available fix (e.g. the
+      # `xlsx` package), so a hard-fail gate here would be permanently red
+      # and provide no signal. Revisit `continue-on-error` once those are
+      # resolved and this can gate merges for real.
+      - name: npm audit (high+ severity, report only)
+        continue-on-error: true
+        run: npm audit --audit-level=high
