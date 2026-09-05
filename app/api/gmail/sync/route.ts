@@ -2,7 +2,7 @@
  * POST /api/gmail/sync
  *
  * Called by:
- *   - Vercel cron (hourly) with header Authorization: Bearer $CRON_SECRET
+ *   - Vercel cron (daily, see crons in vercel.json) with header Authorization: Bearer $CRON_SECRET
  *   - Logged-in user manually (normal session)
  *
  * Env vars needed:
