@@ -21,6 +21,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (body.name?.trim()) data.name = body.name.trim()
   if (typeof body.displayOrder === 'number') data.displayOrder = body.displayOrder
 
+  // Category has a @@unique([userId, name]) constraint — check for a collision
+  // with another one of this user's categories first so a duplicate rename
+  // returns a clean 409 instead of an unhandled Prisma P2002 (raw 500).
+  if (data.name) {
+    const existing = await prisma.category.findUnique({
+      where: { userId_name: { userId: user.id, name: data.name } },
+    })
+    if (existing && existing.id !== params.id) {
+      return NextResponse.json({ error: 'Category already exists' }, { status: 409 })
+    }
+  }
+
   const updated = await prisma.category.update({ where: { id: params.id }, data })
   return NextResponse.json(updated)
 }

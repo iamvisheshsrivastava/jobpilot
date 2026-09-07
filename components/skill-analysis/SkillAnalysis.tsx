@@ -141,7 +141,7 @@ export default function SkillAnalysis({ compact, initialResult, onResult }: Skil
                 </p>
                 <p className="text-xs mt-0.5 text-slate-600">
                   {profileComplete
-                    ? `${profile.skills?.length || 0} skills · ${profile.experience?.length || 0} exp. entries`
+                    ? `${parseJsonField(profile?.skills).length} skills · ${parseJsonField(profile?.experience).length} exp. entries`
                     : "Add your CV text or experience to My Profile first."}
                 </p>
               </div>
