@@ -33,6 +33,18 @@ Vercel assigns a new preview URL per branch (visible under **Deployments** in th
 ### Dashboard
 ![Dashboard](public/screenshots/dashboard.png)
 
+### Job Tracker — List View
+Captured live from the `demo@jobpilot.app` read-only account: application stats, categories, and the full job table with status/priority/deadline.
+![Job tracker list view](docs/screenshots/jobs-dashboard.png)
+
+### Job Tracker — Kanban View
+The same jobs grouped into a Saved → Applied → Interview → Offer pipeline.
+![Job tracker kanban view](docs/screenshots/jobs-kanban.png)
+
+### Analytics
+Applications-over-time trend, resume performance, and pipeline funnel, computed from the demo account's seeded data.
+![Analytics dashboard](docs/screenshots/analytics.png)
+
 ---
 
 ## 🧩 Chrome Extension
