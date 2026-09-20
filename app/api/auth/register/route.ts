@@ -22,18 +22,27 @@ export async function POST(req: Request) {
       )
     }
 
-    const { email, password, name } = await req.json()
+    const body = await req.json().catch(() => null)
+    const { email, password, name } = body ?? {}
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
-    if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+    if (name != null && (typeof name !== 'string' || name.length > 100)) {
+      return NextResponse.json({ error: 'Name must be a string of at most 100 characters' }, { status: 400 })
+    }
+
+    if (email.length > 254 || !EMAIL_RE.test(email.trim())) {
       return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 })
     }
 
     if (password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    }
+
+    if (Buffer.byteLength(password) > 72) {
+      return NextResponse.json({ error: 'Password must be at most 72 bytes' }, { status: 400 })
     }
 
     const normalizedEmail = email.toLowerCase().trim()

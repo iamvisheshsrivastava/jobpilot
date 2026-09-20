@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { getExtSecret, EXT_TOKEN_TTL_MS } from '@/lib/auth-ext'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 // 10 attempts per 15 minutes per IP — see lib/rate-limit.ts for caveats.
@@ -19,9 +20,14 @@ export async function POST(req: Request) {
       )
     }
 
-    const { email, password } = await req.json()
-    if (!email || !password) {
+    const body = await req.json().catch(() => null)
+    const email = body?.email
+    const password = body?.password
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
+    }
+    if (email.length > 254 || Buffer.byteLength(password) > 72) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     const normalizedEmail = email.toLowerCase().trim()
@@ -39,10 +45,11 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email,
       name: user.name,
-      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      typ: 'ext',
+      exp: Date.now() + EXT_TOKEN_TTL_MS,
     })).toString('base64url')
 
-    const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+    const secret = getExtSecret()
     if (!secret) {
       console.error('[auth/token] AUTH_SECRET/NEXTAUTH_SECRET is not set')
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -51,7 +58,8 @@ export async function POST(req: Request) {
     const token = `${payload}.${sig}`
 
     return NextResponse.json({ token, email: user.email, name: user.name })
-  } catch {
+  } catch (err) {
+    console.error('[auth/token]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

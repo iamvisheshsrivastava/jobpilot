@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getUser } from '@/lib/auth-ext'
+import { getUser, isDemoAccount } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { isValidStatus, isValidPriority, isSafeUrl } from '@/lib/validation'
 
 type JobStatus = string
 type JobPriority = string
 
-const DEMO_EMAIL = 'demo@jobpilot.app'
 
 // Normalize UI display names → DB values (also pass DB values through unchanged)
 const STATUS_NORMALIZE: Record<string, string> = {
@@ -48,7 +47,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const user = await getUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+  if (isDemoAccount(user.email)) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const job = await getOwnedJob(user.id, params.id)
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -124,7 +123,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const user = await getUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+  if (isDemoAccount(user.email)) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const job = await getOwnedJob(user.id, params.id)
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -1,10 +1,10 @@
+import { isDemoAccount } from '@/lib/auth-ext'
 import { NextResponse } from 'next/server'
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { auth } from '@/lib/auth'
 import { r2Client, R2_BUCKET } from '@/lib/r2'
 
-const DEMO_EMAIL = 'demo@jobpilot.app'
 
 // POST /api/upload — upload a file to R2, returns { url }
 export async function POST(req: Request) {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (session.user.email === DEMO_EMAIL) {
+  if (isDemoAccount(session.user.email)) {
     return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
   }
 
@@ -59,7 +59,7 @@ export async function DELETE(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (session.user.email === DEMO_EMAIL) {
+  if (isDemoAccount(session.user.email)) {
     return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
   }
 

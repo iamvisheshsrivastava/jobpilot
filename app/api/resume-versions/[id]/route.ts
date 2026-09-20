@@ -1,9 +1,9 @@
+import { isDemoAccount } from '@/lib/auth-ext'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isSafeUrl } from '@/lib/validation'
 
-const DEMO_EMAIL = 'demo@jobpilot.app'
 
 function isValidFileUrl(value: string): boolean {
   return value.startsWith('data:') || value.startsWith('r2://') || isSafeUrl(value)
@@ -14,7 +14,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (session.user.email === DEMO_EMAIL) {
+  if (isDemoAccount(session.user.email)) {
     return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
   }
 
@@ -64,7 +64,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (session.user.email === DEMO_EMAIL) {
+  if (isDemoAccount(session.user.email)) {
     return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
   }
 

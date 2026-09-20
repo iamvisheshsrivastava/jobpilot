@@ -1,10 +1,10 @@
+import { isDemoAccount } from '@/lib/auth-ext'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt, decrypt, maskKey } from '@/lib/crypto'
 
 const VALID_PROVIDERS = ['GROQ', 'OPENROUTER', 'OPENAI', 'ANTHROPIC', 'GEMINI'] as const
-const DEMO_EMAIL = 'demo@jobpilot.app'
 
 export async function GET() {
   const session = await auth()
@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.email === DEMO_EMAIL) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
+  if (isDemoAccount(session.user.email)) return NextResponse.json({ error: 'Demo account is read-only' }, { status: 403 })
 
   const body = await req.json()
   const { key, modelName } = body

@@ -202,7 +202,7 @@ Include programming languages, frameworks, tools, platforms, and technologies. E
       matchedNice,
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Skill match error (${provider}): ${msg}` }, { status: 500 })
+    console.error('[skill-match]', provider, err)
+    return NextResponse.json({ error: 'Skill match failed. Please try again.' }, { status: 500 })
   }
 }
