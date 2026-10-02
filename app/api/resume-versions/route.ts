@@ -23,25 +23,31 @@ export async function GET() {
     },
   })
 
-  // For each version, also count interviews among linked jobs
-  const result = await Promise.all(
-    versions.map(async (v) => {
-      const interviewCount = await prisma.job.count({
-        where: { resumeVersionId: v.id, status: 'INTERVIEW' },
-      })
-      return {
-        id: v.id,
-        userId: v.userId,
-        name: v.name,
-        fileUrl: v.fileUrl,
-        notes: v.notes,
-        createdAt: v.createdAt.toISOString(),
-        updatedAt: v.updatedAt.toISOString(),
-        applications: v._count.jobs,
-        interviews: interviewCount,
-      }
-    }),
+  // Interview counts for all versions in a single grouped query instead of
+  // one prisma.job.count call per version (N+1).
+  const interviewCounts = await prisma.job.groupBy({
+    by: ['resumeVersionId'],
+    where: {
+      resumeVersionId: { in: versions.map((v) => v.id) },
+      status: 'INTERVIEW',
+    },
+    _count: { _all: true },
+  })
+  const interviewCountByVersionId = new Map(
+    interviewCounts.map((c) => [c.resumeVersionId as string, c._count._all]),
   )
+
+  const result = versions.map((v) => ({
+    id: v.id,
+    userId: v.userId,
+    name: v.name,
+    fileUrl: v.fileUrl,
+    notes: v.notes,
+    createdAt: v.createdAt.toISOString(),
+    updatedAt: v.updatedAt.toISOString(),
+    applications: v._count.jobs,
+    interviews: interviewCountByVersionId.get(v.id) ?? 0,
+  }))
 
   return NextResponse.json(result)
 }

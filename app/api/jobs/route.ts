@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getUser, isDemoAccount } from '@/lib/auth-ext'
 import { prisma } from '@/lib/prisma'
 import { isValidStatus, isValidPriority, isSafeUrl, parsePositiveInt } from '@/lib/validation'
@@ -68,31 +69,63 @@ export async function POST(req: Request) {
   const cat = await prisma.category.findFirst({ where: { id: categoryId, userId: user.id } })
   if (!cat) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
 
-  const maxJob = await prisma.job.aggregate({
-    where: { category: { userId: user.id } },
-    _max: { jobNumber: true },
-  })
-  const jobNumber = (maxJob._max.jobNumber ?? 0) + 1
+  // The max-read + create used to run as two separate statements, so two
+  // concurrent requests could read the same max jobNumber and both insert
+  // with the same value. Run them inside a single Serializable transaction
+  // and retry on a Postgres serialization failure (Prisma P2034) so one of
+  // the racing requests re-reads the up-to-date max instead of colliding.
+  const MAX_ATTEMPTS = 5
+  let job: Awaited<ReturnType<typeof prisma.job.create>> & {
+    category: { id: string; name: string }
+    note: { id: string; jobId: string; content: string; createdAt: Date; updatedAt: Date } | null
+  }
+  let lastError: unknown
+  let attempt = 0
+  for (; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      job = await prisma.$transaction(
+        async (tx) => {
+          const maxJob = await tx.job.aggregate({
+            where: { category: { userId: user.id } },
+            _max: { jobNumber: true },
+          })
+          const jobNumber = (maxJob._max.jobNumber ?? 0) + 1
 
-  const job = await prisma.job.create({
-    data: {
-      categoryId,
-      jobNumber,
-      title: title.trim(),
-      company: company?.trim() || null,
-      link: link?.trim() || null,
-      status: (status as JobStatus) || 'IN_PROGRESS',
-      priority: (priority as JobPriority) || 'MEDIUM',
-      comments: comments?.trim() || null,
-      deadline: deadline ? new Date(deadline) : null,
-      ...(pageNote ? { note: { create: { content: pageNote } } } : {}),
-    },
-    include: { category: { select: { id: true, name: true } }, note: true },
-  })
+          const created = await tx.job.create({
+            data: {
+              categoryId,
+              jobNumber,
+              title: title.trim(),
+              company: company?.trim() || null,
+              link: link?.trim() || null,
+              status: (status as JobStatus) || 'IN_PROGRESS',
+              priority: (priority as JobPriority) || 'MEDIUM',
+              comments: comments?.trim() || null,
+              deadline: deadline ? new Date(deadline) : null,
+              ...(pageNote ? { note: { create: { content: pageNote } } } : {}),
+            },
+            include: { category: { select: { id: true, name: true } }, note: true },
+          })
 
-  await prisma.jobHistory.create({
-    data: { jobId: job.id, fieldChanged: 'status', oldValue: null, newValue: job.status },
-  })
+          await tx.jobHistory.create({
+            data: { jobId: created.id, fieldChanged: 'status', oldValue: null, newValue: created.status },
+          })
 
-  return NextResponse.json(job, { status: 201 })
+          return created
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      )
+      lastError = undefined
+      break
+    } catch (err) {
+      lastError = err
+      const isSerializationFailure =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034'
+      if (!isSerializationFailure) throw err
+      // retry: another concurrent request won the race, try again with a fresh read
+    }
+  }
+  if (lastError) throw lastError
+
+  return NextResponse.json(job!, { status: 201 })
 }
