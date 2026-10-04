@@ -102,6 +102,10 @@ export type Job = {
   recruiterName?: string; recruiterEmail?: string; recruiterLinkedIn?: string;
   resumeUsed?: string; resumeId?: string; resumeVersion?: number; applicationNotes?: string;
   resumeVersionId?: string;
+  // AI match score (#21)
+  matchScore?: number; matchVerdict?: string; matchedAt?: string;
+  // Interview scheduling (#20)
+  interviewDate?: string; interviewType?: string; interviewLocation?: string;
 };
 
 export type ApiKeyRecord = {

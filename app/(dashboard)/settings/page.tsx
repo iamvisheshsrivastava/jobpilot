@@ -24,7 +24,7 @@ import {
   saveApiKey,
 } from "@/lib/api";
 
-type Tab = "api" | "integrations" | "danger";
+type Tab = "api" | "integrations" | "security" | "danger";
 
 const CUSTOM_MODEL = "custom";
 
@@ -37,6 +37,8 @@ export default function SettingsPage() {
   const [gmailLoading, setGmailLoading] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; botConfigured: boolean; connectUrl: string | null } | null>(null);
   const [telegramLoading, setTelegramLoading] = useState(false);
+  const [digestSending, setDigestSending] = useState(false);
+  const [digestMessage, setDigestMessage] = useState("");
 
   // API keys
   const [provider, setProvider] = useState<LlmProvider>("OpenAI");
@@ -47,6 +49,13 @@ export default function SettingsPage() {
   const [apiMessage, setApiMessage] = useState("");
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
   const [apiSaving, setApiSaving] = useState(false);
+
+  // Security (change password)
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   // Danger zone
   const [deleteJobsText, setDeleteJobsText] = useState("");
@@ -91,6 +100,21 @@ export default function SettingsPage() {
     await fetch("/api/telegram/status", { method: "DELETE" });
     setTelegramStatus((s) => s ? { ...s, connected: false } : s);
     setTelegramLoading(false);
+  }
+
+  async function handleSendDigestNow() {
+    setDigestSending(true);
+    setDigestMessage("");
+    try {
+      const res = await fetch("/api/digest/weekly", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      setDigestMessage(res.ok && data.sent ? "Sent ✓" : res.ok ? "No Telegram connected" : data.error ?? "Failed");
+    } catch {
+      setDigestMessage("Failed");
+    } finally {
+      setDigestSending(false);
+      setTimeout(() => setDigestMessage(""), 4000);
+    }
   }
 
   async function handleGmailDisconnect() {
@@ -140,6 +164,29 @@ export default function SettingsPage() {
     await loadApiKeys();
   }
 
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage("");
+    if (newPassword.length < 8) { setPasswordMessage("New password must be at least 8 characters."); return; }
+    if (newPassword !== confirmPassword) { setPasswordMessage("Passwords do not match."); return; }
+    setPasswordSaving(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setPasswordMessage(data.error ?? "Failed to change password."); return; }
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+      setPasswordMessage("Password changed ✓ — any Chrome extension sign-ins have been signed out.");
+    } catch {
+      setPasswordMessage("Network error. Please try again.");
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
   async function handleDeleteAllJobs() {
     if (isDemo || deleteJobsText !== "DELETE") return;
     setDangerLoading(true);
@@ -181,6 +228,7 @@ export default function SettingsPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "api", label: "API Keys" },
     { id: "integrations", label: "Integrations" },
+    { id: "security", label: "Security" },
     { id: "danger", label: "Danger Zone" },
   ];
 
@@ -400,16 +448,31 @@ export default function SettingsPage() {
                   Telegram bot not yet configured by admin. Check back soon.
                 </div>
               ) : telegramStatus?.connected ? (
-                <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <p className="text-sm font-medium text-green-800">✓ Telegram connected</p>
-                  <Button
-                    type="button" variant="outline" size="sm"
-                    disabled={telegramLoading}
-                    onClick={handleTelegramDisconnect}
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    {telegramLoading ? "Disconnecting…" : "Disconnect"}
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <p className="text-sm font-medium text-green-800">✓ Telegram connected</p>
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      disabled={telegramLoading}
+                      onClick={handleTelegramDisconnect}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                    >
+                      {telegramLoading ? "Disconnecting…" : "Disconnect"}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div>
+                      <p className="text-sm text-slate-700">Weekly digest</p>
+                      <p className="text-xs text-slate-500">A Monday summary of jobs added, applications, interviews, and offers.</p>
+                    </div>
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      disabled={digestSending}
+                      onClick={handleSendDigestNow}
+                    >
+                      {digestSending ? "Sending…" : digestMessage || "Send test digest"}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -461,6 +524,54 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Security tab ─────────────────────────────────────────────── */}
+      {tab === "security" && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-semibold text-slate-900">Change Password</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Changing your password immediately signs out the Chrome extension on every device — you&apos;ll need to sign back in there.
+          </p>
+
+          {isDemo ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              Password changes are disabled for the demo account.
+            </div>
+          ) : (
+            <form className="mt-5 max-w-sm space-y-4" onSubmit={handleChangePassword}>
+              <div className="space-y-1.5">
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword" type="password" value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)} required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword" type="password" value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)} required minLength={8}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword" type="password" value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8}
+                />
+              </div>
+              {passwordMessage ? (
+                <p className={cn("text-sm font-medium", passwordMessage.includes("✓") ? "text-emerald-600" : "text-red-600")}>
+                  {passwordMessage}
+                </p>
+              ) : null}
+              <Button type="submit" className="bg-blue-500 text-white hover:bg-blue-600" disabled={passwordSaving}>
+                {passwordSaving ? "Saving…" : "Change Password"}
+              </Button>
+            </form>
+          )}
         </div>
       )}
 

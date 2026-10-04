@@ -86,7 +86,7 @@ export default function InboxPage() {
   async function handleConnect() {
     // Check if OAuth is configured before redirecting
     try {
-      const check = await fetch("/api/auth/gmail/check");
+      const check = await fetch("/api/gmail/check");
       if (check.status === 503) {
         setSyncMsg("Gmail OAuth is not configured yet. See the setup steps below.");
         return;

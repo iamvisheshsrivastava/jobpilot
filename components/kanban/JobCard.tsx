@@ -118,6 +118,24 @@ export default function JobCard({
             {isOverdue ? "Overdue" : deadlineDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
           </span>
         )}
+        {job.matchScore != null && (
+          <span
+            className={cn(
+              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              job.matchScore >= 70 ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                : job.matchScore >= 40 ? "bg-amber-100 text-amber-700 border-amber-200"
+                : "bg-red-100 text-red-700 border-red-200",
+            )}
+            title="AI match score"
+          >
+            {job.matchScore}% match
+          </span>
+        )}
+        {job.interviewDate && (
+          <span className="inline-flex items-center rounded-md border border-violet-200 bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+            Interview {new Date(job.interviewDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          </span>
+        )}
       </div>
 
       {/* Quick actions */}

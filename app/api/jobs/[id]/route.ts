@@ -53,7 +53,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json()
-  const { title, company, link, categoryId, status, priority, comments, deadline, pageNote, notes, resumeVersion, recruiterName, recruiterEmail, recruiterLinkedIn, applicationNotes, resumeVersionId, starred } = body
+  const { title, company, link, categoryId, status, priority, comments, deadline, pageNote, notes, resumeVersion, recruiterName, recruiterEmail, recruiterLinkedIn, applicationNotes, resumeVersionId, starred, interviewDate, interviewType, interviewLocation } = body
 
   if (categoryId) {
     const cat = await prisma.category.findFirst({ where: { id: categoryId, userId: user.id } })
@@ -79,6 +79,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (dbStatus && dbStatus !== job.status) historyEntries.push({ fieldChanged: 'status', oldValue: job.status, newValue: dbStatus })
   if (dbPriority && dbPriority !== job.priority) historyEntries.push({ fieldChanged: 'priority', oldValue: job.priority, newValue: dbPriority })
   if (categoryId && categoryId !== job.categoryId) historyEntries.push({ fieldChanged: 'categoryId', oldValue: job.categoryId, newValue: categoryId })
+  if (interviewDate !== undefined) {
+    const newInterviewDate = interviewDate ? new Date(interviewDate).toISOString() : null
+    const oldInterviewDate = job.interviewDate ? job.interviewDate.toISOString() : null
+    if (newInterviewDate !== oldInterviewDate) {
+      historyEntries.push({ fieldChanged: 'interviewDate', oldValue: oldInterviewDate, newValue: newInterviewDate ?? '' })
+    }
+  }
 
   const data: Record<string, unknown> = {}
   if (title?.trim()) data.title = title.trim()
@@ -97,6 +104,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // notes is NOT a Job column (belongs to JobNote via pageNote/upsert); do not write to data.notes
   if (resumeVersionId !== undefined) data.resumeVersionId = resumeVersionId || null
   if (starred !== undefined) data.starred = Boolean(starred)
+  if (interviewDate !== undefined) data.interviewDate = interviewDate ? new Date(interviewDate) : null
+  if (interviewType !== undefined) data.interviewType = interviewType?.trim() || null
+  if (interviewLocation !== undefined) data.interviewLocation = interviewLocation?.trim() || null
 
   const updated = await prisma.$transaction(async (tx) => {
     const updatedJob = await tx.job.update({

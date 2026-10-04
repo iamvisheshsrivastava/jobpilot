@@ -1,4 +1,7 @@
-// GET /api/auth/gmail/check — returns 200 if OAuth is configured, 503 if not
+// GET /api/gmail/check — returns 200 if Gmail OAuth is configured, 503 if not.
+// Consolidated here under /api/gmail (alongside connect/callback/status/
+// disconnect/sync) - this used to live at /api/auth/gmail/check, a stray
+// duplicate route under a different namespace for no reason (issue #7).
 import { NextResponse } from "next/server";
 
 export async function GET() {

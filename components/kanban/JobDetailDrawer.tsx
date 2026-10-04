@@ -48,6 +48,15 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
   const [applicationNotes, setApplicationNotes] = useState("");
   const [saved, setSaved] = useState(false);
 
+  // Interview scheduling (#20)
+  const [interviewDate, setInterviewDate] = useState("");
+  const [interviewType, setInterviewType] = useState("");
+  const [interviewLocation, setInterviewLocation] = useState("");
+
+  // AI match score (#21)
+  const [matchChecking, setMatchChecking] = useState(false);
+  const [matchError, setMatchError] = useState("");
+
   // Fetch resume versions from API
   const fetchResumeVersions = useCallback(async () => {
     try {
@@ -83,6 +92,10 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
       setResumeUsed(job.resumeUsed || "");
       setApplicationNotes(job.applicationNotes || "");
       setSelectedResumeVersionId(job.resumeVersionId || "");
+      setInterviewDate(job.interviewDate ? job.interviewDate.slice(0, 16) : "");
+      setInterviewType(job.interviewType || "");
+      setInterviewLocation(job.interviewLocation || "");
+      setMatchError("");
       setSaved(false);
     }
   }, [job]);
@@ -108,6 +121,9 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
           resumeVersion: resumeUsed || null,
           applicationNotes: applicationNotes || null,
           resumeVersionId: selectedResumeVersionId || null,
+          interviewDate: interviewDate || null,
+          interviewType: interviewType || null,
+          interviewLocation: interviewLocation || null,
         }),
       });
       if (!res.ok) {
@@ -120,6 +136,39 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
       onSaved();
     } catch (err) {
       console.error('[JobDetailDrawer] save error:', err);
+    }
+  }
+
+  async function handleCheckMatch() {
+    if (!job || demo) return;
+    setMatchChecking(true);
+    setMatchError("");
+    try {
+      const pageText = [job.title, job.company, comments, applicationNotes].filter(Boolean).join("\n\n");
+      if (!pageText.trim()) {
+        setMatchError("Add a job description to Comments or Application Notes first.");
+        return;
+      }
+      const profileRes = await fetch("/api/profile");
+      const profile = profileRes.ok ? await profileRes.json() : null;
+      let skillsList = "";
+      try { skillsList = profile?.skills ? JSON.parse(profile.skills).join(", ") : ""; } catch { /* ignore */ }
+      const userProfile = profile
+        ? [profile.summary, skillsList, profile.cvText].filter(Boolean).join("\n")
+        : "";
+
+      const res = await fetch("/api/suitability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageText, userProfile, jobId: job.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setMatchError(data.error ?? "Failed to check match."); return; }
+      onSaved();
+    } catch {
+      setMatchError("Network error. Please try again.");
+    } finally {
+      setMatchChecking(false);
     }
   }
 
@@ -293,6 +342,80 @@ export default function JobDetailDrawer({ job, open, onClose, onSaved }: JobDeta
               placeholder="Legacy notes field..."
               disabled={demo}
             />
+          </section>
+
+          {/* Interview Scheduling */}
+          <section>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Interview Scheduling</h3>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Date &amp; Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={interviewDate}
+                  onChange={(e) => setInterviewDate(e.target.value)}
+                  disabled={demo}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-500">Type</Label>
+                  <select
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+                    value={interviewType}
+                    onChange={(e) => setInterviewType(e.target.value)}
+                    disabled={demo}
+                  >
+                    <option value="">—</option>
+                    <option value="Phone">Phone</option>
+                    <option value="Video">Video</option>
+                    <option value="Onsite">Onsite</option>
+                    <option value="Technical">Technical</option>
+                    <option value="Final">Final</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-500">Location / Link</Label>
+                  <Input
+                    value={interviewLocation}
+                    onChange={(e) => setInterviewLocation(e.target.value)}
+                    placeholder="Zoom link, address..."
+                    disabled={demo}
+                  />
+                </div>
+              </div>
+              {interviewDate && (
+                <p className="text-xs text-slate-500">
+                  Reminder: add this to your calendar — JobPilot doesn&apos;t send separate interview alerts yet.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* AI Match Score */}
+          <section>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">AI Match Score</h3>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              {job.matchScore != null ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-semibold text-slate-900">{job.matchScore}<span className="text-sm text-slate-400">/100</span></p>
+                    {job.matchVerdict && <p className="text-xs text-slate-500 mt-0.5">{job.matchVerdict}</p>}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" disabled={matchChecking || demo} onClick={handleCheckMatch}>
+                    {matchChecking ? "Checking…" : "Re-check"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-500">Not checked yet.</p>
+                  <Button type="button" size="sm" disabled={matchChecking || demo} onClick={handleCheckMatch}>
+                    {matchChecking ? "Checking…" : "Check AI Match"}
+                  </Button>
+                </div>
+              )}
+              {matchError && <p className="mt-2 text-xs text-red-600">{matchError}</p>}
+            </div>
           </section>
 
           {/* Skill Match */}

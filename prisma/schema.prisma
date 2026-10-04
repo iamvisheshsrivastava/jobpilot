@@ -18,13 +18,17 @@ datasource db {
 // enum LlmProvider { GROQ OPENROUTER OPENAI ANTHROPIC GEMINI }
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  name         String?
-  passwordHash     String      @map("password_hash")
-  telegramChatId   String?     @map("telegram_chat_id")
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  passwordHash   String   @map("password_hash")
+  // Bumped whenever the password changes (or an admin/user wants to revoke
+  // all outstanding extension tokens). Embedded in extension tokens as `tv`
+  // and checked in verifyExtToken() - issue #15.
+  tokenVersion   Int      @default(0) @map("token_version")
+  telegramChatId String?  @map("telegram_chat_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   categories     Category[]
   apiKeys        ApiKey[]
@@ -52,15 +56,15 @@ model UserProfile {
   userId         String   @unique @map("user_id")
   summary        String?
   cvText         String?  @map("cv_text")
-  experience     String?  // JSON array of ExperienceEntry
-  education      String?  // JSON array of EducationEntry
-  skills         String?  // JSON array of strings
-  languages      String?  // JSON array of LanguageEntry
-  certifications String?  // JSON array of strings
+  experience     String? // JSON array of ExperienceEntry
+  education      String? // JSON array of EducationEntry
+  skills         String? // JSON array of strings
+  languages      String? // JSON array of LanguageEntry
+  certifications String? // JSON array of strings
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
 }
@@ -68,13 +72,13 @@ model UserProfile {
 model ApiKey {
   id           String   @id @default(cuid())
   userId       String   @map("user_id")
-  provider     String   // "GROQ" | "OPENROUTER" or any LlmProvider
+  provider     String // "GROQ" | "OPENROUTER" or any LlmProvider
   encryptedKey String   @map("encrypted_key")
   modelName    String?  @map("model_name")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
   @@map("api_keys")
@@ -88,42 +92,53 @@ model Category {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobs         Job[]
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs Job[]
 
   @@unique([userId, name])
   @@map("categories")
 }
 
 model Job {
-  id          String   @id @default(cuid())
-  categoryId  String   @map("category_id")
-  jobNumber   Int      @map("job_number")
-  title       String
-  company     String?
-  link        String?
-  status           String   @default("IN_PROGRESS") // JobStatus enum values
-  priority         String   @default("MEDIUM")       // JobPriority enum values
+  id               String    @id @default(cuid())
+  categoryId       String    @map("category_id")
+  jobNumber        Int       @map("job_number")
+  title            String
+  company          String?
+  link             String?
+  status           String    @default("IN_PROGRESS") // JobStatus enum values
+  priority         String    @default("MEDIUM") // JobPriority enum values
   comments         String?
   deadline         DateTime?
-  dateAdded        DateTime @default(now()) @map("date_added")
-  starred          Boolean  @default(false)
-  duplicateGroupId String?  @map("duplicate_group_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  dateAdded        DateTime  @default(now()) @map("date_added")
+  starred          Boolean   @default(false)
+  duplicateGroupId String?   @map("duplicate_group_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   // Kanban / extended fields
-  recruiterName      String?  @map("recruiter_name")
-  recruiterEmail     String?  @map("recruiter_email")
-  recruiterLinkedIn  String?  @map("recruiter_linkedin")
-  resumeUsed         String?  @map("resume_used")
-  applicationNotes   String?  @map("application_notes")
-  resumeVersionId    String?  @map("resume_version_id")
+  recruiterName     String? @map("recruiter_name")
+  recruiterEmail    String? @map("recruiter_email")
+  recruiterLinkedIn String? @map("recruiter_linkedin")
+  resumeUsed        String? @map("resume_used")
+  applicationNotes  String? @map("application_notes")
+  resumeVersionId   String? @map("resume_version_id")
 
-  category     Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // AI-computed suitability score (0-100), persisted so it survives a page
+  // reload instead of only living in the suitability-check response (#21).
+  matchScore   Int?      @map("match_score")
+  matchVerdict String?   @map("match_verdict")
+  matchedAt    DateTime? @map("matched_at")
+
+  // Interview scheduling (#20)
+  interviewDate     DateTime? @map("interview_date")
+  interviewType     String?   @map("interview_type") // e.g. Phone, Video, Onsite, Technical
+  interviewLocation String?   @map("interview_location") // address, meeting link, or dial-in info
+
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   resumeVersion ResumeVersion? @relation("JobResume", fields: [resumeVersionId], references: [id])
-  note         JobNote?
-  history      JobHistory[]
+  note          JobNote?
+  history       JobHistory[]
 
   @@map("jobs")
 }
@@ -150,7 +165,7 @@ model JobNote {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@map("job_notes")
 }
@@ -163,10 +178,11 @@ model JobHistory {
   newValue     String?  @map("new_value")
   changedAt    DateTime @default(now()) @map("changed_at")
 
-  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@map("job_history")
 }
+
 model GmailToken {
   id           String    @id @default(cuid())
   userId       String    @unique @map("user_id")
@@ -181,7 +197,7 @@ model GmailToken {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("gmail_tokens")
 }
@@ -189,17 +205,22 @@ model GmailToken {
 model Notification {
   id           String    @id @default(cuid())
   userId       String    @map("user_id")
-  type         String    // REJECTION | INTERVIEW | OFFER | APPLICATION_CONFIRMATION | OTHER
+  type         String // REJECTION | INTERVIEW | OFFER | APPLICATION_CONFIRMATION | OTHER
   title        String
   body         String
   read         Boolean   @default(false)
   emailFrom    String?   @map("email_from")
   emailSubject String?   @map("email_subject")
   emailDate    DateTime? @map("email_date")
-  gmailMsgId   String?   @unique @map("gmail_msg_id")
+  // Scoped to (userId, gmailMsgId) rather than globally unique on gmailMsgId -
+  // Gmail message IDs are only unique within one mailbox, so two different
+  // users could otherwise never both get a notification for "the same"
+  // msgId, and in principle collide (issue #23).
+  gmailMsgId   String?   @map("gmail_msg_id")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, gmailMsgId])
   @@map("notifications")
 }

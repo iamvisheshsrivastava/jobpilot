@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       email: user.email,
       name: user.name,
       typ: 'ext',
+      tv: user.tokenVersion,
       exp: Date.now() + EXT_TOKEN_TTL_MS,
     })).toString('base64url')
 

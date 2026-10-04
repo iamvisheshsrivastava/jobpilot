@@ -112,6 +112,12 @@ function mapJob(raw: any): JobWithCategory {
     applicationNotes: raw.applicationNotes ?? raw.application_notes ?? undefined,
     resumeId: raw.resumeId ?? raw.resume_id ?? undefined,
     resumeVersionId: raw.resumeVersionId ?? raw.resume_version_id ?? undefined,
+    matchScore: raw.matchScore ?? raw.match_score ?? undefined,
+    matchVerdict: raw.matchVerdict ?? raw.match_verdict ?? undefined,
+    matchedAt: raw.matchedAt ?? raw.matched_at ?? undefined,
+    interviewDate: raw.interviewDate ?? raw.interview_date ?? undefined,
+    interviewType: raw.interviewType ?? raw.interview_type ?? undefined,
+    interviewLocation: raw.interviewLocation ?? raw.interview_location ?? undefined,
   }
 }
 
@@ -270,6 +276,9 @@ export async function updateJob(id: string, jobData: Partial<{
   notes: string
   starred: boolean
   duplicateGroupId: string
+  interviewDate: string | null
+  interviewType: string | null
+  interviewLocation: string | null
 }>): Promise<{ ok: boolean; job?: JobWithCategory; error?: string }> {
   try {
     const body: Record<string, unknown> = { ...jobData }

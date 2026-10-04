@@ -11,6 +11,7 @@
  */
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { getUser } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
 import { decrypt, encrypt, safeDecrypt } from "@/lib/crypto";
@@ -229,8 +230,10 @@ async function syncUserGmail(userId: string): Promise<SyncResult> {
   };
 
   for (const { id: msgId } of messages) {
-    // Skip already-processed
-    const exists = await prisma.notification.findUnique({ where: { gmailMsgId: msgId } });
+    // Skip already-processed (gmailMsgId is only unique per-user - see #23)
+    const exists = await prisma.notification.findUnique({
+      where: { userId_gmailMsgId: { userId, gmailMsgId: msgId } },
+    });
     if (exists) continue;
 
     // Fetch full message
@@ -279,18 +282,30 @@ async function syncUserGmail(userId: string): Promise<SyncResult> {
       OTHER: "Job-related email",
     };
 
-    await prisma.notification.create({
-      data: {
-        userId,
-        type,
-        title: titles[type],
-        body: summary,
-        emailFrom: from,
-        emailSubject: subject,
-        emailDate,
-        gmailMsgId: msgId,
-      },
-    });
+    try {
+      await prisma.notification.create({
+        data: {
+          userId,
+          type,
+          title: titles[type],
+          body: summary,
+          emailFrom: from,
+          emailSubject: subject,
+          emailDate,
+          gmailMsgId: msgId,
+        },
+      });
+    } catch (e) {
+      // P2002 = unique constraint violation on gmailMsgId. Another sync run
+      // (e.g. the daily cron firing while the user also hit "Sync now") can
+      // race past the `exists` check above and both try to insert the same
+      // message - that's a harmless duplicate, not a real failure, so treat
+      // it as already-processed rather than letting it crash the whole run.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        continue;
+      }
+      throw e;
+    }
 
     // Push Telegram notification if user has it connected
     if (user?.telegramChatId) {
