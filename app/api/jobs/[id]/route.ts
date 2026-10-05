@@ -104,7 +104,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // notes is NOT a Job column (belongs to JobNote via pageNote/upsert); do not write to data.notes
   if (resumeVersionId !== undefined) data.resumeVersionId = resumeVersionId || null
   if (starred !== undefined) data.starred = Boolean(starred)
-  if (interviewDate !== undefined) data.interviewDate = interviewDate ? new Date(interviewDate) : null
+  if (interviewDate !== undefined) {
+    data.interviewDate = interviewDate ? new Date(interviewDate) : null
+    // Rescheduling (or clearing) the interview should let the 24h-ahead
+    // reminder cron fire again for the new date.
+    data.interviewReminderSentAt = null
+  }
   if (interviewType !== undefined) data.interviewType = interviewType?.trim() || null
   if (interviewLocation !== undefined) data.interviewLocation = interviewLocation?.trim() || null
 

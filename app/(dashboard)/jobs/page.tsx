@@ -99,10 +99,14 @@ const DUP_COLORS = [
 type FormState = {
   title: string; company: string; link: string; categoryId: string;
   status: JobStatus; priority: JobPriority; deadline: string; comments: string;
+  interviewDate: string; interviewType: string; interviewLocation: string;
 };
 
 function emptyForm(categoryId = ""): FormState {
-  return { title: "", company: "", link: "", categoryId, status: "In Progress", priority: "Medium", deadline: "", comments: "" };
+  return {
+    title: "", company: "", link: "", categoryId, status: "In Progress", priority: "Medium", deadline: "", comments: "",
+    interviewDate: "", interviewType: "", interviewLocation: "",
+  };
 }
 
 function statusClass(status: JobStatus) {
@@ -446,6 +450,8 @@ export default function JobsPage() {
       title: job.title, company: job.company || "", link: job.link || "",
       categoryId: job.categoryId, status: job.status, priority: job.priority,
       deadline: job.deadline || "", comments: job.comments || "",
+      interviewDate: job.interviewDate ? job.interviewDate.slice(0, 16) : "",
+      interviewType: job.interviewType || "", interviewLocation: job.interviewLocation || "",
     });
     setFormError("");
     setJobModalOpen(true);
@@ -459,6 +465,9 @@ export default function JobsPage() {
       categoryId: form.categoryId, title: form.title, company: form.company,
       link: form.link, status: form.status, priority: form.priority,
       deadline: form.deadline, comments: form.comments,
+      interviewDate: form.interviewDate || null,
+      interviewType: form.interviewType || null,
+      interviewLocation: form.interviewLocation || null,
     };
     setFormError("");
     setFormSaving(true);
@@ -1236,6 +1245,41 @@ export default function JobsPage() {
                 <Label htmlFor="deadline">Deadline</Label>
                 <Input id="deadline" type="date" value={form.deadline} onChange={(e) => setForm((v) => ({ ...v, deadline: e.target.value }))} />
               </div>
+              {form.status === "Interview" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="interviewDate">Interview Date &amp; Time</Label>
+                    <Input
+                      id="interviewDate" type="datetime-local" value={form.interviewDate}
+                      onChange={(e) => setForm((v) => ({ ...v, interviewDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="interviewType">Interview Type</Label>
+                    <select
+                      id="interviewType"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400"
+                      value={form.interviewType}
+                      onChange={(e) => setForm((v) => ({ ...v, interviewType: e.target.value }))}
+                    >
+                      <option value="">—</option>
+                      <option value="Phone">Phone</option>
+                      <option value="Video">Video</option>
+                      <option value="Onsite">Onsite</option>
+                      <option value="Technical">Technical</option>
+                      <option value="Final">Final</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="interviewLocation">Interview Location / Link</Label>
+                    <Input
+                      id="interviewLocation" value={form.interviewLocation}
+                      onChange={(e) => setForm((v) => ({ ...v, interviewLocation: e.target.value }))}
+                      placeholder="Zoom link, address..."
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="comments">Comments</Label>
                 <textarea

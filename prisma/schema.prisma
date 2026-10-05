@@ -134,6 +134,10 @@ model Job {
   interviewDate     DateTime? @map("interview_date")
   interviewType     String?   @map("interview_type") // e.g. Phone, Video, Onsite, Technical
   interviewLocation String?   @map("interview_location") // address, meeting link, or dial-in info
+  // Set once the 24h-ahead reminder cron (app/api/cron/interview-reminders)
+  // has fired for the current interviewDate, so re-running the cron (or a
+  // concurrent run) doesn't send duplicate Telegram pings / Notification rows.
+  interviewReminderSentAt DateTime? @map("interview_reminder_sent_at")
 
   category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   resumeVersion ResumeVersion? @relation("JobResume", fields: [resumeVersionId], references: [id])
