@@ -33,12 +33,15 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const isDemo = session?.user?.email === DEMO_ACCOUNT_EMAIL;
   const [tab, setTab] = useState<Tab>("api");
-  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string; lastSyncAt?: string | null } | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailSyncing, setGmailSyncing] = useState(false);
+  const [gmailSyncMsg, setGmailSyncMsg] = useState("");
   const [telegramStatus, setTelegramStatus] = useState<{ connected: boolean; botConfigured: boolean; connectUrl: string | null } | null>(null);
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [digestSending, setDigestSending] = useState(false);
   const [digestMessage, setDigestMessage] = useState("");
+  const [integrationEvents, setIntegrationEvents] = useState<{ id: string; provider: string; event: string; detail: string | null; createdAt: string }[]>([]);
 
   // API keys
   const [provider, setProvider] = useState<LlmProvider>("OpenAI");
@@ -74,8 +77,28 @@ export default function SettingsPage() {
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d && setTelegramStatus(d))
         .catch(() => {});
+      fetch("/api/integration-events")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setIntegrationEvents(d.events ?? []))
+        .catch(() => {});
     }
   }, [tab]);
+
+  async function handleGmailSyncNow() {
+    setGmailSyncing(true);
+    setGmailSyncMsg("");
+    try {
+      const res = await fetch("/api/gmail/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      setGmailSyncMsg(res.ok ? `Found ${data.notifications ?? 0} new email${data.notifications === 1 ? "" : "s"}.` : data.error ?? "Sync failed.");
+      const statusRes = await fetch("/api/gmail/status");
+      if (statusRes.ok) setGmailStatus(await statusRes.json());
+    } catch {
+      setGmailSyncMsg("Network error.");
+    } finally {
+      setGmailSyncing(false);
+    }
+  }
 
   // Handle redirect from Gmail OAuth callback
   useEffect(() => {
@@ -399,21 +422,32 @@ export default function SettingsPage() {
 
             <div className="mt-5">
               {gmailStatus?.connected ? (
-                <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-green-800">✓ Connected</p>
-                    <p className="text-xs text-green-700 mt-0.5">{gmailStatus.email}</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-green-800">✓ Connected</p>
+                      <p className="text-xs text-green-700 mt-0.5">{gmailStatus.email}</p>
+                      <p className="text-xs text-green-600 mt-0.5">
+                        Last synced: {gmailStatus.lastSyncAt ? new Date(gmailStatus.lastSyncAt).toLocaleString() : "never"}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={gmailLoading}
+                      onClick={handleGmailDisconnect}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                    >
+                      {gmailLoading ? "Disconnecting…" : "Disconnect"}
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={gmailLoading}
-                    onClick={handleGmailDisconnect}
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    {gmailLoading ? "Disconnecting…" : "Disconnect"}
-                  </Button>
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm text-slate-600">{gmailSyncMsg || "Manually check for new job emails now."}</p>
+                    <Button type="button" variant="outline" size="sm" disabled={gmailSyncing} onClick={handleGmailSyncNow}>
+                      {gmailSyncing ? "Syncing…" : "Sync now"}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -524,6 +558,26 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+
+          {/* Audit trail */}
+          {integrationEvents.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="font-semibold text-slate-800">Recent Activity</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Connect/disconnect history for your integrations.</p>
+              <div className="mt-4 space-y-1.5">
+                {integrationEvents.map((ev) => (
+                  <div key={ev.id} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">
+                      <Badge variant="secondary" className="mr-2 text-xs">{ev.provider}</Badge>
+                      {ev.event === "CONNECT" ? "Connected" : "Disconnected"}
+                      {ev.detail ? ` — ${ev.detail}` : ""}
+                    </span>
+                    <span className="text-xs text-slate-400">{new Date(ev.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

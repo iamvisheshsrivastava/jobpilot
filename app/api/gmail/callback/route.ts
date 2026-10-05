@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
+import { logIntegrationEvent } from "@/lib/integration-events";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "https://jobpilot-lime.vercel.app";
 
@@ -109,6 +110,7 @@ export async function GET(req: Request) {
       },
     });
 
+    await logIntegrationEvent(userId, "GMAIL", "CONNECT", email);
     return redirectSettings("connected");
   } catch (e) {
     console.error("[gmail/callback] unhandled error:", e);

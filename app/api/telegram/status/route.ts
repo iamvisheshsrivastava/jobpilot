@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { getUser, isDemoAccount } from "@/lib/auth-ext";
 import { prisma } from "@/lib/prisma";
+import { logIntegrationEvent } from "@/lib/integration-events";
 
 const LINK_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -48,6 +49,7 @@ export async function DELETE(req: Request) {
     where: { id: user.id },
     data: { telegramChatId: null },
   });
+  await logIntegrationEvent(user.id, "TELEGRAM", "DISCONNECT");
 
   return NextResponse.json({ ok: true });
 }

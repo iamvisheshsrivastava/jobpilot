@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { logIntegrationEvent } from "@/lib/integration-events";
 
 /**
  * POST /api/telegram/webhook
@@ -73,6 +74,8 @@ export async function POST(req: Request) {
       await sendReply(chatId, "❌ Could not link your account. Please try the connect link again from JobPilot settings.");
       return NextResponse.json({ ok: true });
     }
+
+    await logIntegrationEvent(user.id, "TELEGRAM", "CONNECT");
 
     await sendReply(
       chatId,

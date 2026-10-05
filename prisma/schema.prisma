@@ -30,12 +30,13 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  categories     Category[]
-  apiKeys        ApiKey[]
-  profile        UserProfile?
-  resumeVersions ResumeVersion[]
-  gmailToken     GmailToken?
-  notifications  Notification[]
+  categories        Category[]
+  apiKeys           ApiKey[]
+  profile           UserProfile?
+  resumeVersions    ResumeVersion[]
+  gmailToken        GmailToken?
+  notifications     Notification[]
+  integrationEvents IntegrationEvent[]
 
   @@map("users")
 }
@@ -131,9 +132,9 @@ model Job {
   matchedAt    DateTime? @map("matched_at")
 
   // Interview scheduling (#20)
-  interviewDate     DateTime? @map("interview_date")
-  interviewType     String?   @map("interview_type") // e.g. Phone, Video, Onsite, Technical
-  interviewLocation String?   @map("interview_location") // address, meeting link, or dial-in info
+  interviewDate           DateTime? @map("interview_date")
+  interviewType           String?   @map("interview_type") // e.g. Phone, Video, Onsite, Technical
+  interviewLocation       String?   @map("interview_location") // address, meeting link, or dial-in info
   // Set once the 24h-ahead reminder cron (app/api/cron/interview-reminders)
   // has fired for the current interviewDate, so re-running the cron (or a
   // concurrent run) doesn't send duplicate Telegram pings / Notification rows.
@@ -227,4 +228,20 @@ model Notification {
 
   @@unique([userId, gmailMsgId])
   @@map("notifications")
+}
+
+// Audit trail of integration connect/disconnect events, surfaced in
+// Settings → Integrations (issue #7).
+model IntegrationEvent {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  provider  String // GMAIL | TELEGRAM
+  event     String // CONNECT | DISCONNECT
+  detail    String? // e.g. the connected Gmail address
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("integration_events")
 }
