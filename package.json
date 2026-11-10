@@ -43,7 +43,7 @@
     "@aws-sdk/s3-request-presigner": "^3.600.0"
   },
   "devDependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
